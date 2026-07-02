@@ -6,23 +6,23 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1280</width>
-    <height>820</height>
+    <width>1360</width>
+    <height>860</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>1100</width>
-    <height>720</height>
+    <width>1180</width>
+    <height>760</height>
    </size>
   </property>
   <property name="windowTitle">
    <string>Excel 单元格定向汇总工具</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QVBoxLayout" name="mainLayout">
+   <layout class="QHBoxLayout" name="rootLayout">
     <property name="spacing">
-     <number>12</number>
+     <number>14</number>
     </property>
     <property name="leftMargin">
      <number>14</number>
@@ -34,61 +34,105 @@
      <number>14</number>
     </property>
     <property name="bottomMargin">
-     <number>14</number>
+     <number>12</number>
     </property>
     <item>
-     <widget class="QFrame" name="headerFrame">
+     <widget class="QFrame" name="sidebarFrame">
+      <property name="minimumSize">
+       <size>
+        <width>228</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>248</width>
+        <height>16777215</height>
+       </size>
+      </property>
       <property name="frameShape">
        <enum>QFrame::Shape::StyledPanel</enum>
       </property>
-      <layout class="QHBoxLayout" name="headerLayout">
+      <layout class="QVBoxLayout" name="sidebarLayout">
+       <property name="spacing">
+        <number>12</number>
+       </property>
        <property name="leftMargin">
-        <number>16</number>
+        <number>14</number>
        </property>
        <property name="topMargin">
-        <number>12</number>
-       </property>
-       <property name="rightMargin">
         <number>16</number>
        </property>
+       <property name="rightMargin">
+        <number>14</number>
+       </property>
        <property name="bottomMargin">
-        <number>12</number>
+        <number>16</number>
        </property>
        <item>
-        <layout class="QVBoxLayout" name="titleLayout">
-         <item>
-          <widget class="QLabel" name="titleLabel">
-           <property name="text">
-            <string>Excel 单元格定向汇总工具</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="subtitleLabel">
-           <property name="text">
-            <string>批量读取 Excel 指定 Sheet 与单元格并汇总输出</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <widget class="QLabel" name="sidebarTitleLabel">
+         <property name="text">
+          <string>Excel 汇总工作台</string>
+         </property>
+        </widget>
        </item>
        <item>
-        <spacer name="headerSpacer">
+        <widget class="QLabel" name="sidebarSubtitleLabel">
+         <property name="text">
+          <string>审计与财务自动化</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="navSchemeButton">
+         <property name="text">
+          <string>方案管理</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="navSourceButton">
+         <property name="text">
+          <string>数据源配置</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="navRulesButton">
+         <property name="text">
+          <string>规则配置</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="navRunButton">
+         <property name="text">
+          <string>执行与日志</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="sidebarSpacer">
          <property name="orientation">
-          <enum>Qt::Orientation::Horizontal</enum>
+          <enum>Qt::Orientation::Vertical</enum>
          </property>
          <property name="sizeHint" stdset="0">
           <size>
-           <width>40</width>
-           <height>20</height>
+           <width>20</width>
+           <height>40</height>
           </size>
          </property>
         </spacer>
        </item>
        <item>
-        <widget class="QPushButton" name="helpButton">
+        <widget class="QLabel" name="sidebarHintLabel">
          <property name="text">
-          <string>帮助说明</string>
+          <string>非递归扫描目标目录
+支持 .xlsx / .xlsm / .xltx / .xltm
+公式读取已保存缓存值</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -96,191 +140,76 @@
      </widget>
     </item>
     <item>
-     <widget class="QGroupBox" name="schemeGroupBox">
-      <property name="title">
-       <string>方案管理</string>
+     <widget class="QFrame" name="contentFrame">
+      <property name="frameShape">
+       <enum>QFrame::Shape::NoFrame</enum>
       </property>
-      <layout class="QHBoxLayout" name="schemeLayout">
-       <item>
-        <widget class="QLineEdit" name="schemeNameEdit">
-         <property name="placeholderText">
-          <string>方案名称</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QComboBox" name="schemeComboBox">
-         <property name="minimumWidth">
-          <number>220</number>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="saveSchemeButton">
-         <property name="text">
-          <string>保存方案</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="loadSchemeButton">
-         <property name="text">
-          <string>载入方案</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="deleteSchemeButton">
-         <property name="text">
-          <string>删除方案</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QGroupBox" name="sourceGroupBox">
-      <property name="title">
-       <string>数据源配置</string>
-      </property>
-      <layout class="QGridLayout" name="sourceLayout">
-       <property name="horizontalSpacing">
-        <number>10</number>
+      <layout class="QVBoxLayout" name="mainLayout">
+       <property name="spacing">
+        <number>12</number>
        </property>
-       <property name="verticalSpacing">
-        <number>10</number>
+       <property name="leftMargin">
+        <number>0</number>
        </property>
-       <item row="0" column="0">
-        <widget class="QLabel" name="targetFolderLabel">
-         <property name="text">
-          <string>目标文件夹</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLineEdit" name="targetFolderEdit">
-         <property name="placeholderText">
-          <string>选择包含 Excel 文件的文件夹</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="2">
-        <widget class="QPushButton" name="browseTargetButton">
-         <property name="text">
-          <string>浏览</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="outputFileLabel">
-         <property name="text">
-          <string>输出文件</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLineEdit" name="outputFileEdit">
-         <property name="placeholderText">
-          <string>选择汇总结果输出路径，建议 .xlsx</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="2">
-        <widget class="QPushButton" name="browseOutputButton">
-         <property name="text">
-          <string>浏览</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="keywordLabel">
-         <property name="text">
-          <string>文件名关键词</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLineEdit" name="keywordEdit">
-         <property name="placeholderText">
-          <string>为空时处理全部符合条件的 Excel 文件</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="2">
-        <widget class="QComboBox" name="filterModeComboBox"/>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QSplitter" name="contentSplitter">
-      <property name="orientation">
-       <enum>Qt::Orientation::Vertical</enum>
-      </property>
-      <widget class="QGroupBox" name="rulesGroupBox">
-       <property name="title">
-        <string>规则配置</string>
+       <property name="topMargin">
+        <number>0</number>
        </property>
-       <layout class="QVBoxLayout" name="rulesLayout">
-        <item>
-         <widget class="QTableWidget" name="rulesTable">
-          <property name="minimumHeight">
-           <number>230</number>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QFrame" name="headerFrame">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>94</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>112</height>
+          </size>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::Shape::StyledPanel</enum>
+         </property>
+         <layout class="QHBoxLayout" name="headerLayout">
+          <property name="leftMargin">
+           <number>18</number>
           </property>
-          <property name="editTriggers">
-           <set>QAbstractItemView::EditTrigger::DoubleClicked|QAbstractItemView::EditTrigger::EditKeyPressed|QAbstractItemView::EditTrigger::SelectedClicked</set>
+          <property name="topMargin">
+           <number>14</number>
           </property>
-          <property name="alternatingRowColors">
-           <bool>true</bool>
+          <property name="rightMargin">
+           <number>18</number>
           </property>
-          <column>
-           <property name="text">
-            <string>输出列名</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Sheet 模式</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Sheet 值</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>单元格</string>
-           </property>
-          </column>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="ruleButtonsLayout">
+          <property name="bottomMargin">
+           <number>14</number>
+          </property>
           <item>
-           <widget class="QPushButton" name="addRuleButton">
-            <property name="text">
-             <string>新增规则</string>
-            </property>
-           </widget>
+           <layout class="QVBoxLayout" name="titleLayout">
+            <item>
+             <widget class="QLabel" name="titleLabel">
+              <property name="text">
+               <string>Excel 单元格定向汇总工具</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="subtitleLabel">
+              <property name="text">
+               <string>批量读取 Excel 指定 Sheet 与单元格并汇总输出</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item>
-           <widget class="QPushButton" name="deleteRuleButton">
-            <property name="text">
-             <string>删除选中</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="sampleRuleButton">
-            <property name="text">
-             <string>填充示例规则</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="ruleButtonsSpacer">
+           <spacer name="headerSpacer">
             <property name="orientation">
              <enum>Qt::Orientation::Horizontal</enum>
             </property>
@@ -292,82 +221,336 @@
             </property>
            </spacer>
           </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QGroupBox" name="logGroupBox">
-       <property name="title">
-        <string>执行状态与日志</string>
-       </property>
-       <layout class="QVBoxLayout" name="logLayout">
-        <item>
-         <layout class="QHBoxLayout" name="actionLayout">
           <item>
-           <widget class="QPushButton" name="startButton">
+           <widget class="QPushButton" name="helpButton">
             <property name="minimumWidth">
-             <number>140</number>
+             <number>112</number>
             </property>
             <property name="text">
-             <string>开始汇总</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="clearLogButton">
-            <property name="text">
-             <string>清空日志</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QLabel" name="currentFileLabel">
-            <property name="text">
-             <string>当前处理文件：-</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <spacer name="actionSpacer">
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>40</width>
-              <height>20</height>
-             </size>
-            </property>
-           </spacer>
-          </item>
-          <item>
-           <widget class="QLabel" name="countLabel">
-            <property name="text">
-             <string>已处理 0 / 0</string>
+             <string>帮助说明</string>
             </property>
            </widget>
           </item>
          </layout>
-        </item>
-        <item>
-         <widget class="QProgressBar" name="progressBar">
-          <property name="value">
+        </widget>
+       </item>
+       <item>
+        <widget class="QFrame" name="configFrame">
+         <property name="frameShape">
+          <enum>QFrame::Shape::NoFrame</enum>
+         </property>
+         <layout class="QHBoxLayout" name="configLayout">
+          <property name="spacing">
+           <number>12</number>
+          </property>
+          <property name="leftMargin">
            <number>0</number>
           </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPlainTextEdit" name="logConsole">
-          <property name="minimumHeight">
-           <number>170</number>
+          <property name="topMargin">
+           <number>0</number>
           </property>
-          <property name="readOnly">
-           <bool>true</bool>
+          <property name="rightMargin">
+           <number>0</number>
           </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="QGroupBox" name="schemeGroupBox">
+            <property name="title">
+             <string>方案管理</string>
+            </property>
+            <layout class="QGridLayout" name="schemeLayout">
+             <property name="horizontalSpacing">
+              <number>10</number>
+             </property>
+             <property name="verticalSpacing">
+              <number>10</number>
+             </property>
+             <item row="0" column="0" colspan="3">
+              <widget class="QLineEdit" name="schemeNameEdit">
+               <property name="placeholderText">
+                <string>方案名称</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0" colspan="3">
+              <widget class="QComboBox" name="schemeComboBox"/>
+             </item>
+             <item row="2" column="0">
+              <widget class="QPushButton" name="saveSchemeButton">
+               <property name="text">
+                <string>保存方案</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QPushButton" name="loadSchemeButton">
+               <property name="text">
+                <string>载入方案</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="2">
+              <widget class="QPushButton" name="deleteSchemeButton">
+               <property name="text">
+                <string>删除方案</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="sourceGroupBox">
+            <property name="title">
+             <string>数据源配置</string>
+            </property>
+            <layout class="QGridLayout" name="sourceLayout">
+             <property name="horizontalSpacing">
+              <number>10</number>
+             </property>
+             <property name="verticalSpacing">
+              <number>10</number>
+             </property>
+             <item row="0" column="0">
+              <widget class="QLabel" name="targetFolderLabel">
+               <property name="text">
+                <string>目标文件夹</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QLineEdit" name="targetFolderEdit">
+               <property name="placeholderText">
+                <string>选择包含 Excel 文件的文件夹</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="2">
+              <widget class="QPushButton" name="browseTargetButton">
+               <property name="text">
+                <string>浏览</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="outputFileLabel">
+               <property name="text">
+                <string>输出文件</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLineEdit" name="outputFileEdit">
+               <property name="placeholderText">
+                <string>选择汇总结果输出路径，建议 .xlsx</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="2">
+              <widget class="QPushButton" name="browseOutputButton">
+               <property name="text">
+                <string>浏览</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="keywordLabel">
+               <property name="text">
+                <string>关键词</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="QLineEdit" name="keywordEdit">
+               <property name="placeholderText">
+                <string>为空时处理全部符合条件的 Excel 文件</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="2">
+              <widget class="QComboBox" name="filterModeComboBox"/>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="rulesGroupBox">
+         <property name="title">
+          <string>规则配置</string>
+         </property>
+         <layout class="QVBoxLayout" name="rulesLayout">
+          <property name="spacing">
+           <number>10</number>
+          </property>
+          <item>
+           <widget class="QTableWidget" name="rulesTable">
+            <property name="minimumHeight">
+             <number>210</number>
+            </property>
+            <property name="editTriggers">
+             <set>QAbstractItemView::EditTrigger::DoubleClicked|QAbstractItemView::EditTrigger::EditKeyPressed|QAbstractItemView::EditTrigger::SelectedClicked</set>
+            </property>
+            <property name="alternatingRowColors">
+             <bool>true</bool>
+            </property>
+            <column>
+             <property name="text">
+              <string>输出列名</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Sheet 模式</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>Sheet 值</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string>单元格</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="ruleButtonsLayout">
+            <property name="spacing">
+             <number>10</number>
+            </property>
+            <item>
+             <widget class="QPushButton" name="addRuleButton">
+              <property name="text">
+               <string>新增规则</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="deleteRuleButton">
+              <property name="text">
+               <string>删除选中</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="sampleRuleButton">
+              <property name="text">
+               <string>填充示例规则</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="ruleButtonsSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="logGroupBox">
+         <property name="title">
+          <string>执行状态与日志</string>
+         </property>
+         <layout class="QVBoxLayout" name="logLayout">
+          <property name="spacing">
+           <number>10</number>
+          </property>
+          <item>
+           <layout class="QHBoxLayout" name="actionLayout">
+            <property name="spacing">
+             <number>10</number>
+            </property>
+            <item>
+             <widget class="QPushButton" name="startButton">
+              <property name="minimumWidth">
+               <number>142</number>
+              </property>
+              <property name="text">
+               <string>开始汇总</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="clearLogButton">
+              <property name="text">
+               <string>清空日志</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="currentFileLabel">
+              <property name="text">
+               <string>当前处理文件：-</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="actionSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QLabel" name="countLabel">
+              <property name="text">
+               <string>已处理 0 / 0</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QProgressBar" name="progressBar">
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>18</height>
+             </size>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPlainTextEdit" name="logConsole">
+            <property name="minimumHeight">
+             <number>128</number>
+            </property>
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
      </widget>
     </item>
    </layout>

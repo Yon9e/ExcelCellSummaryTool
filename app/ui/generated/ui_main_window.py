@@ -19,27 +19,88 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QFram
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QMainWindow, QPlainTextEdit,
     QProgressBar, QPushButton, QSizePolicy, QSpacerItem,
-    QSplitter, QStatusBar, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget)
+    QStatusBar, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(1280, 820)
-        MainWindow.setMinimumSize(QSize(1100, 720))
+        MainWindow.resize(1360, 860)
+        MainWindow.setMinimumSize(QSize(1180, 760))
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
-        self.mainLayout = QVBoxLayout(self.centralwidget)
+        self.rootLayout = QHBoxLayout(self.centralwidget)
+        self.rootLayout.setSpacing(14)
+        self.rootLayout.setObjectName(u"rootLayout")
+        self.rootLayout.setContentsMargins(14, 14, 14, 12)
+        self.sidebarFrame = QFrame(self.centralwidget)
+        self.sidebarFrame.setObjectName(u"sidebarFrame")
+        self.sidebarFrame.setMinimumSize(QSize(228, 0))
+        self.sidebarFrame.setMaximumSize(QSize(248, 16777215))
+        self.sidebarFrame.setFrameShape(QFrame.Shape.StyledPanel)
+        self.sidebarLayout = QVBoxLayout(self.sidebarFrame)
+        self.sidebarLayout.setSpacing(12)
+        self.sidebarLayout.setObjectName(u"sidebarLayout")
+        self.sidebarLayout.setContentsMargins(14, 16, 14, 16)
+        self.sidebarTitleLabel = QLabel(self.sidebarFrame)
+        self.sidebarTitleLabel.setObjectName(u"sidebarTitleLabel")
+
+        self.sidebarLayout.addWidget(self.sidebarTitleLabel)
+
+        self.sidebarSubtitleLabel = QLabel(self.sidebarFrame)
+        self.sidebarSubtitleLabel.setObjectName(u"sidebarSubtitleLabel")
+
+        self.sidebarLayout.addWidget(self.sidebarSubtitleLabel)
+
+        self.navSchemeButton = QPushButton(self.sidebarFrame)
+        self.navSchemeButton.setObjectName(u"navSchemeButton")
+
+        self.sidebarLayout.addWidget(self.navSchemeButton)
+
+        self.navSourceButton = QPushButton(self.sidebarFrame)
+        self.navSourceButton.setObjectName(u"navSourceButton")
+
+        self.sidebarLayout.addWidget(self.navSourceButton)
+
+        self.navRulesButton = QPushButton(self.sidebarFrame)
+        self.navRulesButton.setObjectName(u"navRulesButton")
+
+        self.sidebarLayout.addWidget(self.navRulesButton)
+
+        self.navRunButton = QPushButton(self.sidebarFrame)
+        self.navRunButton.setObjectName(u"navRunButton")
+
+        self.sidebarLayout.addWidget(self.navRunButton)
+
+        self.sidebarSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.sidebarLayout.addItem(self.sidebarSpacer)
+
+        self.sidebarHintLabel = QLabel(self.sidebarFrame)
+        self.sidebarHintLabel.setObjectName(u"sidebarHintLabel")
+        self.sidebarHintLabel.setWordWrap(True)
+
+        self.sidebarLayout.addWidget(self.sidebarHintLabel)
+
+
+        self.rootLayout.addWidget(self.sidebarFrame)
+
+        self.contentFrame = QFrame(self.centralwidget)
+        self.contentFrame.setObjectName(u"contentFrame")
+        self.contentFrame.setFrameShape(QFrame.Shape.NoFrame)
+        self.mainLayout = QVBoxLayout(self.contentFrame)
         self.mainLayout.setSpacing(12)
         self.mainLayout.setObjectName(u"mainLayout")
-        self.mainLayout.setContentsMargins(14, 14, 14, 14)
-        self.headerFrame = QFrame(self.centralwidget)
+        self.mainLayout.setContentsMargins(0, 0, 0, 0)
+        self.headerFrame = QFrame(self.contentFrame)
         self.headerFrame.setObjectName(u"headerFrame")
+        self.headerFrame.setMinimumSize(QSize(0, 94))
+        self.headerFrame.setMaximumSize(QSize(16777215, 112))
         self.headerFrame.setFrameShape(QFrame.Shape.StyledPanel)
         self.headerLayout = QHBoxLayout(self.headerFrame)
         self.headerLayout.setObjectName(u"headerLayout")
-        self.headerLayout.setContentsMargins(16, 12, 16, 12)
+        self.headerLayout.setContentsMargins(18, 14, 18, 14)
         self.titleLayout = QVBoxLayout()
         self.titleLayout.setObjectName(u"titleLayout")
         self.titleLabel = QLabel(self.headerFrame)
@@ -61,46 +122,55 @@ class Ui_MainWindow(object):
 
         self.helpButton = QPushButton(self.headerFrame)
         self.helpButton.setObjectName(u"helpButton")
+        self.helpButton.setMinimumWidth(112)
 
         self.headerLayout.addWidget(self.helpButton)
 
 
         self.mainLayout.addWidget(self.headerFrame)
 
-        self.schemeGroupBox = QGroupBox(self.centralwidget)
+        self.configFrame = QFrame(self.contentFrame)
+        self.configFrame.setObjectName(u"configFrame")
+        self.configFrame.setFrameShape(QFrame.Shape.NoFrame)
+        self.configLayout = QHBoxLayout(self.configFrame)
+        self.configLayout.setSpacing(12)
+        self.configLayout.setObjectName(u"configLayout")
+        self.configLayout.setContentsMargins(0, 0, 0, 0)
+        self.schemeGroupBox = QGroupBox(self.configFrame)
         self.schemeGroupBox.setObjectName(u"schemeGroupBox")
-        self.schemeLayout = QHBoxLayout(self.schemeGroupBox)
+        self.schemeLayout = QGridLayout(self.schemeGroupBox)
         self.schemeLayout.setObjectName(u"schemeLayout")
+        self.schemeLayout.setHorizontalSpacing(10)
+        self.schemeLayout.setVerticalSpacing(10)
         self.schemeNameEdit = QLineEdit(self.schemeGroupBox)
         self.schemeNameEdit.setObjectName(u"schemeNameEdit")
 
-        self.schemeLayout.addWidget(self.schemeNameEdit)
+        self.schemeLayout.addWidget(self.schemeNameEdit, 0, 0, 1, 3)
 
         self.schemeComboBox = QComboBox(self.schemeGroupBox)
         self.schemeComboBox.setObjectName(u"schemeComboBox")
-        self.schemeComboBox.setMinimumWidth(220)
 
-        self.schemeLayout.addWidget(self.schemeComboBox)
+        self.schemeLayout.addWidget(self.schemeComboBox, 1, 0, 1, 3)
 
         self.saveSchemeButton = QPushButton(self.schemeGroupBox)
         self.saveSchemeButton.setObjectName(u"saveSchemeButton")
 
-        self.schemeLayout.addWidget(self.saveSchemeButton)
+        self.schemeLayout.addWidget(self.saveSchemeButton, 2, 0, 1, 1)
 
         self.loadSchemeButton = QPushButton(self.schemeGroupBox)
         self.loadSchemeButton.setObjectName(u"loadSchemeButton")
 
-        self.schemeLayout.addWidget(self.loadSchemeButton)
+        self.schemeLayout.addWidget(self.loadSchemeButton, 2, 1, 1, 1)
 
         self.deleteSchemeButton = QPushButton(self.schemeGroupBox)
         self.deleteSchemeButton.setObjectName(u"deleteSchemeButton")
 
-        self.schemeLayout.addWidget(self.deleteSchemeButton)
+        self.schemeLayout.addWidget(self.deleteSchemeButton, 2, 2, 1, 1)
 
 
-        self.mainLayout.addWidget(self.schemeGroupBox)
+        self.configLayout.addWidget(self.schemeGroupBox)
 
-        self.sourceGroupBox = QGroupBox(self.centralwidget)
+        self.sourceGroupBox = QGroupBox(self.configFrame)
         self.sourceGroupBox.setObjectName(u"sourceGroupBox")
         self.sourceLayout = QGridLayout(self.sourceGroupBox)
         self.sourceLayout.setObjectName(u"sourceLayout")
@@ -152,14 +222,15 @@ class Ui_MainWindow(object):
         self.sourceLayout.addWidget(self.filterModeComboBox, 2, 2, 1, 1)
 
 
-        self.mainLayout.addWidget(self.sourceGroupBox)
+        self.configLayout.addWidget(self.sourceGroupBox)
 
-        self.contentSplitter = QSplitter(self.centralwidget)
-        self.contentSplitter.setObjectName(u"contentSplitter")
-        self.contentSplitter.setOrientation(Qt.Orientation.Vertical)
-        self.rulesGroupBox = QGroupBox(self.contentSplitter)
+
+        self.mainLayout.addWidget(self.configFrame)
+
+        self.rulesGroupBox = QGroupBox(self.contentFrame)
         self.rulesGroupBox.setObjectName(u"rulesGroupBox")
         self.rulesLayout = QVBoxLayout(self.rulesGroupBox)
+        self.rulesLayout.setSpacing(10)
         self.rulesLayout.setObjectName(u"rulesLayout")
         self.rulesTable = QTableWidget(self.rulesGroupBox)
         if (self.rulesTable.columnCount() < 4):
@@ -173,13 +244,14 @@ class Ui_MainWindow(object):
         __qtablewidgetitem3 = QTableWidgetItem()
         self.rulesTable.setHorizontalHeaderItem(3, __qtablewidgetitem3)
         self.rulesTable.setObjectName(u"rulesTable")
-        self.rulesTable.setMinimumHeight(230)
+        self.rulesTable.setMinimumHeight(210)
         self.rulesTable.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked|QAbstractItemView.EditTrigger.EditKeyPressed|QAbstractItemView.EditTrigger.SelectedClicked)
         self.rulesTable.setAlternatingRowColors(True)
 
         self.rulesLayout.addWidget(self.rulesTable)
 
         self.ruleButtonsLayout = QHBoxLayout()
+        self.ruleButtonsLayout.setSpacing(10)
         self.ruleButtonsLayout.setObjectName(u"ruleButtonsLayout")
         self.addRuleButton = QPushButton(self.rulesGroupBox)
         self.addRuleButton.setObjectName(u"addRuleButton")
@@ -203,16 +275,20 @@ class Ui_MainWindow(object):
 
         self.rulesLayout.addLayout(self.ruleButtonsLayout)
 
-        self.contentSplitter.addWidget(self.rulesGroupBox)
-        self.logGroupBox = QGroupBox(self.contentSplitter)
+
+        self.mainLayout.addWidget(self.rulesGroupBox)
+
+        self.logGroupBox = QGroupBox(self.contentFrame)
         self.logGroupBox.setObjectName(u"logGroupBox")
         self.logLayout = QVBoxLayout(self.logGroupBox)
+        self.logLayout.setSpacing(10)
         self.logLayout.setObjectName(u"logLayout")
         self.actionLayout = QHBoxLayout()
+        self.actionLayout.setSpacing(10)
         self.actionLayout.setObjectName(u"actionLayout")
         self.startButton = QPushButton(self.logGroupBox)
         self.startButton.setObjectName(u"startButton")
-        self.startButton.setMinimumWidth(140)
+        self.startButton.setMinimumWidth(142)
 
         self.actionLayout.addWidget(self.startButton)
 
@@ -240,20 +316,23 @@ class Ui_MainWindow(object):
 
         self.progressBar = QProgressBar(self.logGroupBox)
         self.progressBar.setObjectName(u"progressBar")
+        self.progressBar.setMaximumSize(QSize(16777215, 18))
         self.progressBar.setValue(0)
 
         self.logLayout.addWidget(self.progressBar)
 
         self.logConsole = QPlainTextEdit(self.logGroupBox)
         self.logConsole.setObjectName(u"logConsole")
-        self.logConsole.setMinimumHeight(170)
+        self.logConsole.setMinimumHeight(128)
         self.logConsole.setReadOnly(True)
 
         self.logLayout.addWidget(self.logConsole)
 
-        self.contentSplitter.addWidget(self.logGroupBox)
 
-        self.mainLayout.addWidget(self.contentSplitter)
+        self.mainLayout.addWidget(self.logGroupBox)
+
+
+        self.rootLayout.addWidget(self.contentFrame)
 
         MainWindow.setCentralWidget(self.centralwidget)
         self.statusbar = QStatusBar(MainWindow)
@@ -267,6 +346,15 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Excel \u5355\u5143\u683c\u5b9a\u5411\u6c47\u603b\u5de5\u5177", None))
+        self.sidebarTitleLabel.setText(QCoreApplication.translate("MainWindow", u"Excel \u6c47\u603b\u5de5\u4f5c\u53f0", None))
+        self.sidebarSubtitleLabel.setText(QCoreApplication.translate("MainWindow", u"\u5ba1\u8ba1\u4e0e\u8d22\u52a1\u81ea\u52a8\u5316", None))
+        self.navSchemeButton.setText(QCoreApplication.translate("MainWindow", u"\u65b9\u6848\u7ba1\u7406", None))
+        self.navSourceButton.setText(QCoreApplication.translate("MainWindow", u"\u6570\u636e\u6e90\u914d\u7f6e", None))
+        self.navRulesButton.setText(QCoreApplication.translate("MainWindow", u"\u89c4\u5219\u914d\u7f6e", None))
+        self.navRunButton.setText(QCoreApplication.translate("MainWindow", u"\u6267\u884c\u4e0e\u65e5\u5fd7", None))
+        self.sidebarHintLabel.setText(QCoreApplication.translate("MainWindow", u"\u975e\u9012\u5f52\u626b\u63cf\u76ee\u6807\u76ee\u5f55\n"
+"\u652f\u6301 .xlsx / .xlsm / .xltx / .xltm\n"
+"\u516c\u5f0f\u8bfb\u53d6\u5df2\u4fdd\u5b58\u7f13\u5b58\u503c", None))
         self.titleLabel.setText(QCoreApplication.translate("MainWindow", u"Excel \u5355\u5143\u683c\u5b9a\u5411\u6c47\u603b\u5de5\u5177", None))
         self.subtitleLabel.setText(QCoreApplication.translate("MainWindow", u"\u6279\u91cf\u8bfb\u53d6 Excel \u6307\u5b9a Sheet \u4e0e\u5355\u5143\u683c\u5e76\u6c47\u603b\u8f93\u51fa", None))
         self.helpButton.setText(QCoreApplication.translate("MainWindow", u"\u5e2e\u52a9\u8bf4\u660e", None))
@@ -282,7 +370,7 @@ class Ui_MainWindow(object):
         self.outputFileLabel.setText(QCoreApplication.translate("MainWindow", u"\u8f93\u51fa\u6587\u4ef6", None))
         self.outputFileEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"\u9009\u62e9\u6c47\u603b\u7ed3\u679c\u8f93\u51fa\u8def\u5f84\uff0c\u5efa\u8bae .xlsx", None))
         self.browseOutputButton.setText(QCoreApplication.translate("MainWindow", u"\u6d4f\u89c8", None))
-        self.keywordLabel.setText(QCoreApplication.translate("MainWindow", u"\u6587\u4ef6\u540d\u5173\u952e\u8bcd", None))
+        self.keywordLabel.setText(QCoreApplication.translate("MainWindow", u"\u5173\u952e\u8bcd", None))
         self.keywordEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"\u4e3a\u7a7a\u65f6\u5904\u7406\u5168\u90e8\u7b26\u5408\u6761\u4ef6\u7684 Excel \u6587\u4ef6", None))
         self.rulesGroupBox.setTitle(QCoreApplication.translate("MainWindow", u"\u89c4\u5219\u914d\u7f6e", None))
         ___qtablewidgetitem = self.rulesTable.horizontalHeaderItem(0)

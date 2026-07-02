@@ -12,6 +12,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.ui.main_window import MainWindow
+from app.ui.styles import apply_desktop_theme
 
 
 def main() -> int:
@@ -22,7 +23,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Excel 单元格定向汇总工具")
     app.setOrganizationName("ExcelCellSummaryTool")
-    app.setStyle("Fusion")
+    apply_desktop_theme(app)
     window = MainWindow()
     window.show()
     return app.exec()

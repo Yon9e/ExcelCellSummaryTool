@@ -13,6 +13,7 @@ dependencies = [
   "ordered-set",
   "zstandard",
   "openpyxl",
+  "qt-material",
 ]
 
 [tool.pytest.ini_options]

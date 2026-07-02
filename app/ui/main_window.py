@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFileDialog,
+    QHeaderView,
     QMainWindow,
     QMessageBox,
     QTableWidgetItem,
@@ -80,14 +81,14 @@ class MainWindow(QMainWindow):
         self.ui.rulesTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.ui.rulesTable.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.ui.rulesTable.setAlternatingRowColors(True)
+        self.ui.rulesTable.setShowGrid(True)
         self.ui.rulesTable.verticalHeader().setDefaultSectionSize(36)
+        self.ui.rulesTable.verticalHeader().setVisible(False)
         header = self.ui.rulesTable.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.ui.rulesTable.setColumnWidth(0, 230)
-        self.ui.rulesTable.setColumnWidth(1, 210)
-        self.ui.rulesTable.setColumnWidth(2, 360)
-        self.ui.rulesTable.setColumnWidth(3, 120)
+        header.setStretchLastSection(True)
+        header.setHighlightSections(False)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.ui.progressBar.setValue(0)
         self.ui.countLabel.setText("已处理 0 / 0")
         self.ui.currentFileLabel.setText("当前处理文件：-")

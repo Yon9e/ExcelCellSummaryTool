@@ -1,130 +1,255 @@
 """应用 QSS 样式。"""
 
+from __future__ import annotations
+
+from typing import Any
+
 
 APP_STYLE = """
+* {
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
 QMainWindow {
-    background: #f6f7f9;
-    color: #202631;
-    font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    background: #070b18;
+    color: #e7edf8;
     font-size: 10.5pt;
 }
-QFrame#headerFrame {
-    background: #ffffff;
-    border: 1px solid #dde2ea;
-    border-radius: 8px;
+QWidget#centralwidget {
+    background: #070b18;
 }
-QLabel#titleLabel {
-    color: #172033;
-    font-size: 18pt;
-    font-weight: 700;
+QFrame#sidebarFrame,
+QFrame#headerFrame,
+QGroupBox {
+    background: #111a2c;
+    border: 1px solid #263755;
+    border-radius: 10px;
 }
+QFrame#contentFrame {
+    background: transparent;
+}
+QLabel#sidebarTitleLabel {
+    color: #f7fbff;
+    font-size: 15pt;
+    font-weight: 800;
+}
+QLabel#sidebarSubtitleLabel,
+QLabel#sidebarHintLabel,
 QLabel#subtitleLabel,
 QLabel#currentFileLabel,
 QLabel#countLabel {
-    color: #5d6676;
+    color: #9aa8c1;
+}
+QLabel#sidebarHintLabel {
+    line-height: 150%;
+}
+QLabel#titleLabel {
+    color: #f8fbff;
+    font-size: 19pt;
+    font-weight: 800;
+}
+QLabel {
+    color: #dbe6f7;
+}
+QPushButton {
+    min-height: 34px;
+    background: #18243a;
+    border: 1px solid #2b3d5e;
+    border-radius: 8px;
+    padding: 7px 13px;
+    color: #e6edf8;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background: #21324f;
+    border-color: #4dd0e1;
+}
+QPushButton:pressed {
+    background: #152238;
+}
+QPushButton:disabled {
+    color: #64738d;
+    background: #11192a;
+    border-color: #22314c;
+}
+QPushButton#navSourceButton,
+QPushButton#navRulesButton,
+QPushButton#navSchemeButton,
+QPushButton#navRunButton {
+    text-align: left;
+    padding-left: 18px;
+    background: #142139;
+}
+QPushButton#navRulesButton,
+QPushButton#startButton {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #4dd0e1, stop:1 #5d9cec);
+    color: #06111f;
+    border-color: #72e5f2;
+    font-weight: 800;
+}
+QPushButton#startButton:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #6ae4f1, stop:1 #7ab6ff);
+}
+QPushButton#deleteSchemeButton,
+QPushButton#deleteRuleButton {
+    color: #ffd7dd;
+    border-color: #7b3342;
+    background: #241726;
+}
+QPushButton#deleteSchemeButton:hover,
+QPushButton#deleteRuleButton:hover {
+    color: #ffffff;
+    border-color: #ff7b91;
+    background: #3a1c2b;
 }
 QGroupBox {
-    background: #ffffff;
-    border: 1px solid #dde2ea;
-    border-radius: 8px;
     margin-top: 18px;
     padding: 14px 12px 12px 12px;
-    font-weight: 600;
-    color: #253044;
+    color: #f7fbff;
+    font-weight: 800;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 12px;
-    padding: 0 4px;
+    left: 14px;
+    top: 2px;
+    padding: 0 8px;
+    background: #111a2c;
+    color: #f7fbff;
 }
 QLineEdit,
 QComboBox,
-QTableWidget,
 QPlainTextEdit,
 QTextBrowser {
-    background: #fbfcfd;
-    border: 1px solid #cfd6e2;
-    border-radius: 6px;
-    padding: 6px;
-    color: #1f2937;
-    selection-background-color: #cae7d5;
+    min-height: 34px;
+    background: #0d1526;
+    border: 1px solid #2b3d5e;
+    border-radius: 8px;
+    padding: 6px 9px;
+    color: #e7edf8;
+    selection-background-color: #4dd0e1;
+    selection-color: #06111f;
 }
 QLineEdit:focus,
 QComboBox:focus,
-QTableWidget:focus,
-QPlainTextEdit:focus {
-    border: 1px solid #2f855a;
-    background: #ffffff;
+QPlainTextEdit:focus,
+QTextBrowser:focus {
+    border-color: #4dd0e1;
+    background: #101b31;
 }
-QPushButton {
-    background: #ffffff;
-    border: 1px solid #cfd6e2;
-    border-radius: 6px;
-    padding: 7px 12px;
-    color: #1f2937;
-    font-weight: 500;
+QComboBox::drop-down {
+    width: 28px;
+    border: 0;
+    border-left: 1px solid #2b3d5e;
 }
-QPushButton:hover {
-    background: #f0f3f7;
-}
-QPushButton:disabled {
-    color: #9aa3b2;
-    background: #eef1f5;
-}
-QPushButton#primaryButton,
-QPushButton#startButton {
-    background: #23734d;
-    border-color: #23734d;
-    color: #ffffff;
-    font-weight: 700;
-}
-QPushButton#primaryButton:hover,
-QPushButton#startButton:hover {
-    background: #1f6845;
-}
-QPushButton#dangerButton,
-QPushButton#deleteSchemeButton,
-QPushButton#deleteRuleButton {
-    color: #9f1d1d;
-    border-color: #e2b7b7;
-}
-QPushButton#dangerButton:hover,
-QPushButton#deleteSchemeButton:hover,
-QPushButton#deleteRuleButton:hover {
-    background: #fff1f1;
+QComboBox QAbstractItemView {
+    background: #101b31;
+    border: 1px solid #2b3d5e;
+    outline: 0;
+    color: #e7edf8;
+    selection-background-color: #2a7abf;
 }
 QTableWidget#rulesTable {
-    gridline-color: #e1e6ee;
-    alternate-background-color: #f5f7fa;
+    background: #0d1526;
+    alternate-background-color: #101b31;
+    color: #dce7f6;
+    border: 1px solid #263755;
+    border-radius: 8px;
+    gridline-color: #263755;
+    selection-background-color: #234e77;
+    selection-color: #ffffff;
+}
+QTableWidget#rulesTable::item {
+    padding: 6px 8px;
+    border: 0;
+}
+QTableWidget#rulesTable::item:selected {
+    background: #234e77;
+    color: #ffffff;
+}
+QHeaderView {
+    background: #16233b;
 }
 QHeaderView::section {
-    background: #e8eef7;
-    color: #273244;
-    padding: 7px;
+    background: #16233b;
+    color: #f1f6ff;
+    padding: 8px 10px;
     border: 0;
-    border-right: 1px solid #d2dae6;
-    font-weight: 700;
+    border-right: 1px solid #263755;
+    border-bottom: 1px solid #263755;
+    font-weight: 800;
+}
+QTableCornerButton::section {
+    background: #16233b;
+    border: 0;
+    border-right: 1px solid #263755;
+    border-bottom: 1px solid #263755;
 }
 QPlainTextEdit#logConsole {
-    background: #111827;
-    border-color: #111827;
-    color: #d1d5db;
+    min-height: 126px;
+    background: #070d1a;
+    border-color: #263755;
+    color: #c8d7ea;
     font-family: "Cascadia Mono", "Consolas", monospace;
-    font-size: 9.5pt;
+    font-size: 9.6pt;
 }
 QProgressBar {
-    border: 1px solid #cfd6e2;
-    border-radius: 6px;
-    background: #eef1f5;
+    border: 1px solid #263755;
+    border-radius: 8px;
+    background: #0d1526;
+    color: #dbe6f7;
     text-align: center;
-    height: 18px;
+    height: 16px;
 }
 QProgressBar::chunk {
-    background: #2f855a;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #4dd0e1, stop:1 #5d9cec);
+    border-radius: 7px;
+}
+QScrollBar:vertical,
+QScrollBar:horizontal {
+    background: #0b1222;
+    border: 0;
+    margin: 0;
+}
+QScrollBar::handle:vertical,
+QScrollBar::handle:horizontal {
+    background: #2a3d5d;
     border-radius: 5px;
+    min-height: 28px;
+    min-width: 28px;
+}
+QScrollBar::handle:vertical:hover,
+QScrollBar::handle:horizontal:hover {
+    background: #4dd0e1;
+}
+QScrollBar::add-line,
+QScrollBar::sub-line {
+    width: 0;
+    height: 0;
 }
 QStatusBar {
-    background: #ffffff;
-    color: #5d6676;
+    background: #070b18;
+    color: #9aa8c1;
+    border-top: 1px solid #1c2a43;
+}
+QMessageBox {
+    background: #111a2c;
+    color: #e7edf8;
 }
 """
+
+
+def apply_desktop_theme(app: Any) -> None:
+    """应用 qt-material 深色主题，并叠加本项目样式。"""
+    from PySide6.QtGui import QFont
+
+    app.setFont(QFont("Microsoft YaHei UI", 10))
+    try:
+        from qt_material import apply_stylesheet
+
+        apply_stylesheet(app, theme="dark_cyan.xml", style="Fusion")
+    except Exception:
+        app.setStyle("Fusion")
+    app.setFont(QFont("Microsoft YaHei UI", 10))
+    app.setStyleSheet(f"{app.styleSheet()}\n{APP_STYLE}")

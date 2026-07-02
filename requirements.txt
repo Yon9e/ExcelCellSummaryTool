@@ -4,3 +4,4 @@ ordered-set
 zstandard
 openpyxl
 pytest
+qt-material
