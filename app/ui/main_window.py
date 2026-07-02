@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QTableWidgetItem,
 )
 
@@ -35,6 +36,8 @@ FILTER_MODE_LABELS = {
     "include": "包含关键词",
     "exclude": "排除关键词",
 }
+
+NAV_PAGE_LABELS = ["方案管理", "数据源配置", "规则配置", "执行与日志"]
 
 
 class MainWindow(QMainWindow):
@@ -92,9 +95,14 @@ class MainWindow(QMainWindow):
         self.ui.progressBar.setValue(0)
         self.ui.countLabel.setText("已处理 0 / 0")
         self.ui.currentFileLabel.setText("当前处理文件：-")
+        for button in self._navigation_buttons():
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._switch_page(2)
 
     def _connect_signals(self) -> None:
         self.ui.helpButton.clicked.connect(self._show_help)
+        for page_index, button in enumerate(self._navigation_buttons()):
+            button.clicked.connect(lambda _checked=False, index=page_index: self._switch_page(index))
         self.ui.browseTargetButton.clicked.connect(self._browse_target_folder)
         self.ui.browseOutputButton.clicked.connect(self._browse_output_file)
         self.ui.saveSchemeButton.clicked.connect(self._save_scheme)
@@ -105,6 +113,25 @@ class MainWindow(QMainWindow):
         self.ui.sampleRuleButton.clicked.connect(self._fill_sample_rules)
         self.ui.clearLogButton.clicked.connect(self.ui.logConsole.clear)
         self.ui.startButton.clicked.connect(self._start_summary)
+
+    def _navigation_buttons(self) -> list[QPushButton]:
+        return [
+            self.ui.navSchemeButton,
+            self.ui.navSourceButton,
+            self.ui.navRulesButton,
+            self.ui.navRunButton,
+        ]
+
+    def _switch_page(self, index: int) -> None:
+        index = max(0, min(index, self.ui.contentStack.count() - 1))
+        self.ui.contentStack.setCurrentIndex(index)
+        for page_index, button in enumerate(self._navigation_buttons()):
+            is_active = page_index == index
+            button.setProperty("active", is_active)
+            button.style().unpolish(button)
+            button.style().polish(button)
+            button.update()
+        self.statusBar().showMessage(f"当前页面：{NAV_PAGE_LABELS[index]}", 3000)
 
     def _show_help(self) -> None:
         dialog = HelpDialog(self)

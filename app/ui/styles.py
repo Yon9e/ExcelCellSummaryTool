@@ -19,13 +19,20 @@ QWidget#centralwidget {
 }
 QFrame#sidebarFrame,
 QFrame#headerFrame,
-QGroupBox {
+QFrame#schemeGroupBox,
+QFrame#sourceGroupBox,
+QFrame#rulesGroupBox,
+QFrame#logGroupBox {
     background: #111a2c;
     border: 1px solid #263755;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 QFrame#contentFrame {
     background: transparent;
+}
+QStackedWidget#contentStack {
+    background: transparent;
+    border: 0;
 }
 QLabel#sidebarTitleLabel {
     color: #f7fbff;
@@ -36,7 +43,10 @@ QLabel#sidebarSubtitleLabel,
 QLabel#sidebarHintLabel,
 QLabel#subtitleLabel,
 QLabel#currentFileLabel,
-QLabel#countLabel {
+QLabel#countLabel,
+QLabel#schemeSectionHintLabel,
+QLabel#sourceSectionHintLabel,
+QLabel#rulesSectionHintLabel {
     color: #9aa8c1;
 }
 QLabel#sidebarHintLabel {
@@ -45,6 +55,14 @@ QLabel#sidebarHintLabel {
 QLabel#titleLabel {
     color: #f8fbff;
     font-size: 19pt;
+    font-weight: 800;
+}
+QLabel#schemeSectionTitleLabel,
+QLabel#sourceSectionTitleLabel,
+QLabel#rulesSectionTitleLabel,
+QLabel#logSectionTitleLabel {
+    color: #f8fbff;
+    font-size: 13pt;
     font-weight: 800;
 }
 QLabel {
@@ -79,7 +97,10 @@ QPushButton#navRunButton {
     padding-left: 18px;
     background: #142139;
 }
-QPushButton#navRulesButton,
+QPushButton#navSchemeButton[active="true"],
+QPushButton#navSourceButton[active="true"],
+QPushButton#navRulesButton[active="true"],
+QPushButton#navRunButton[active="true"],
 QPushButton#startButton {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
         stop:0 #4dd0e1, stop:1 #5d9cec);
@@ -87,6 +108,10 @@ QPushButton#startButton {
     border-color: #72e5f2;
     font-weight: 800;
 }
+QPushButton#navSchemeButton[active="true"]:hover,
+QPushButton#navSourceButton[active="true"]:hover,
+QPushButton#navRulesButton[active="true"]:hover,
+QPushButton#navRunButton[active="true"]:hover,
 QPushButton#startButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
         stop:0 #6ae4f1, stop:1 #7ab6ff);
@@ -102,20 +127,6 @@ QPushButton#deleteRuleButton:hover {
     color: #ffffff;
     border-color: #ff7b91;
     background: #3a1c2b;
-}
-QGroupBox {
-    margin-top: 18px;
-    padding: 14px 12px 12px 12px;
-    color: #f7fbff;
-    font-weight: 800;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    left: 14px;
-    top: 2px;
-    padding: 0 8px;
-    background: #111a2c;
-    color: #f7fbff;
 }
 QLineEdit,
 QComboBox,
