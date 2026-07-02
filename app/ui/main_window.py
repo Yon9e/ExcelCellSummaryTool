@@ -5,13 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSize, QThread, Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFileDialog,
-    QFrame,
-    QGraphicsDropShadowEffect,
     QHeaderView,
     QMainWindow,
     QMessageBox,
@@ -56,7 +53,6 @@ class MainWindow(QMainWindow):
         self.worker_thread: QThread | None = None
         self.worker: SummaryWorker | None = None
         self._configure_widgets()
-        self._apply_visual_effects()
         self._connect_signals()
         self._reload_scheme_names()
         self._append_log("INFO", "应用已启动。")
@@ -106,25 +102,6 @@ class MainWindow(QMainWindow):
             button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._apply_button_icons()
         self._switch_page(2)
-
-    def _apply_visual_effects(self) -> None:
-        # 视觉处理：给主卡片增加轻量阴影，不影响业务功能。
-        for frame in [
-            self.ui.sidebarFrame,
-            self.ui.headerFrame,
-            self.ui.schemeGroupBox,
-            self.ui.sourceGroupBox,
-            self.ui.rulesGroupBox,
-            self.ui.logGroupBox,
-        ]:
-            self._set_card_shadow(frame)
-
-    def _set_card_shadow(self, frame: QFrame) -> None:
-        shadow = QGraphicsDropShadowEffect(frame)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 4)
-        shadow.setColor(QColor(0, 0, 0, 80))
-        frame.setGraphicsEffect(shadow)
 
     def _apply_button_icons(self) -> None:
         icon_size = QSize(18, 18)

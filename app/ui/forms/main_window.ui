@@ -22,19 +22,19 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="rootLayout">
     <property name="spacing">
-     <number>14</number>
+     <number>0</number>
     </property>
     <property name="leftMargin">
-     <number>14</number>
+     <number>0</number>
     </property>
     <property name="topMargin">
-     <number>14</number>
+     <number>0</number>
     </property>
     <property name="rightMargin">
-     <number>14</number>
+     <number>0</number>
     </property>
     <property name="bottomMargin">
-     <number>12</number>
+     <number>0</number>
     </property>
     <item>
      <widget class="QFrame" name="sidebarFrame">
@@ -58,16 +58,16 @@
         <number>12</number>
        </property>
        <property name="leftMargin">
-        <number>14</number>
+        <number>28</number>
        </property>
        <property name="topMargin">
-        <number>16</number>
+        <number>40</number>
        </property>
        <property name="rightMargin">
-        <number>14</number>
+        <number>24</number>
        </property>
        <property name="bottomMargin">
-        <number>16</number>
+        <number>28</number>
        </property>
        <item>
         <widget class="QLabel" name="sidebarTitleLabel">
@@ -149,16 +149,16 @@
         <number>12</number>
        </property>
        <property name="leftMargin">
-        <number>0</number>
+        <number>28</number>
        </property>
        <property name="topMargin">
-        <number>0</number>
+        <number>30</number>
        </property>
        <property name="rightMargin">
-        <number>0</number>
+        <number>28</number>
        </property>
        <property name="bottomMargin">
-        <number>0</number>
+        <number>12</number>
        </property>
        <item>
         <widget class="QFrame" name="headerFrame">
