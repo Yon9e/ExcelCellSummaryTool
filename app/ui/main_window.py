@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt
+from PySide6.QtCore import QSize, QThread, Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFileDialog,
+    QFrame,
+    QGraphicsDropShadowEffect,
     QHeaderView,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTableWidgetItem,
 )
 
@@ -52,6 +56,7 @@ class MainWindow(QMainWindow):
         self.worker_thread: QThread | None = None
         self.worker: SummaryWorker | None = None
         self._configure_widgets()
+        self._apply_visual_effects()
         self._connect_signals()
         self._reload_scheme_names()
         self._append_log("INFO", "应用已启动。")
@@ -85,7 +90,7 @@ class MainWindow(QMainWindow):
         self.ui.rulesTable.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.ui.rulesTable.setAlternatingRowColors(True)
         self.ui.rulesTable.setShowGrid(True)
-        self.ui.rulesTable.verticalHeader().setDefaultSectionSize(36)
+        self.ui.rulesTable.verticalHeader().setDefaultSectionSize(46)
         self.ui.rulesTable.verticalHeader().setVisible(False)
         header = self.ui.rulesTable.horizontalHeader()
         header.setStretchLastSection(True)
@@ -95,9 +100,51 @@ class MainWindow(QMainWindow):
         self.ui.progressBar.setValue(0)
         self.ui.countLabel.setText("已处理 0 / 0")
         self.ui.currentFileLabel.setText("当前处理文件：-")
+        self.ui.sidebarHintLabel.setMinimumHeight(82)
+        self.ui.sidebarHintLabel.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         for button in self._navigation_buttons():
             button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._apply_button_icons()
         self._switch_page(2)
+
+    def _apply_visual_effects(self) -> None:
+        # 视觉处理：给主卡片增加轻量阴影，不影响业务功能。
+        for frame in [
+            self.ui.sidebarFrame,
+            self.ui.headerFrame,
+            self.ui.schemeGroupBox,
+            self.ui.sourceGroupBox,
+            self.ui.rulesGroupBox,
+            self.ui.logGroupBox,
+        ]:
+            self._set_card_shadow(frame)
+
+    def _set_card_shadow(self, frame: QFrame) -> None:
+        shadow = QGraphicsDropShadowEffect(frame)
+        shadow.setBlurRadius(16)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QColor(0, 0, 0, 80))
+        frame.setGraphicsEffect(shadow)
+
+    def _apply_button_icons(self) -> None:
+        icon_size = QSize(18, 18)
+        icon_map = {
+            self.ui.helpButton: QStyle.StandardPixmap.SP_MessageBoxInformation,
+            self.ui.browseTargetButton: QStyle.StandardPixmap.SP_DirOpenIcon,
+            self.ui.browseOutputButton: QStyle.StandardPixmap.SP_FileIcon,
+            self.ui.saveSchemeButton: QStyle.StandardPixmap.SP_DialogSaveButton,
+            self.ui.loadSchemeButton: QStyle.StandardPixmap.SP_DialogOpenButton,
+            self.ui.deleteSchemeButton: QStyle.StandardPixmap.SP_TrashIcon,
+            self.ui.addRuleButton: QStyle.StandardPixmap.SP_FileDialogNewFolder,
+            self.ui.deleteRuleButton: QStyle.StandardPixmap.SP_TrashIcon,
+            self.ui.sampleRuleButton: QStyle.StandardPixmap.SP_DialogApplyButton,
+            self.ui.startButton: QStyle.StandardPixmap.SP_MediaPlay,
+            self.ui.clearLogButton: QStyle.StandardPixmap.SP_DialogResetButton,
+        }
+        for button, icon_name in icon_map.items():
+            button.setIcon(self.style().standardIcon(icon_name))
+            button.setIconSize(icon_size)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def _connect_signals(self) -> None:
         self.ui.helpButton.clicked.connect(self._show_help)
@@ -234,6 +281,7 @@ class MainWindow(QMainWindow):
         rule = rule or Rule("", "exact", "", "")
         self.ui.rulesTable.setItem(row, 0, QTableWidgetItem(rule.output_column))
         mode_combo = QComboBox()
+        mode_combo.setObjectName("sheetModeComboBox")
         for value, label in SHEET_MODE_LABELS.items():
             mode_combo.addItem(label, value)
         mode_index = mode_combo.findData(rule.sheet_mode)
