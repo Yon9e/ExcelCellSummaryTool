@@ -10,6 +10,25 @@ $ZipPath = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.
 $NotesPath = Join-Path $ReleaseDir "RELEASE_NOTES.md"
 $HashPath = Join-Path $ReleaseDir "SHA256SUMS.txt"
 
+function Get-Sha256Hex {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha256.ComputeHash($stream)
+            return -join ($hashBytes | ForEach-Object { $_.ToString("x2") })
+        } finally {
+            $sha256.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
 if (Test-Path -LiteralPath (Join-Path $ReleaseDir "portable")) {
     Remove-Item -LiteralPath (Join-Path $ReleaseDir "portable") -Recurse -Force
@@ -38,10 +57,10 @@ if (Test-Path -LiteralPath $SetupPath) {
 [System.IO.File]::WriteAllBytes($NotesPath, [System.Convert]::FromBase64String($ReleaseNotesBase64))
 
 $hashLines = @()
-$zipHash = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$zipHash = Get-Sha256Hex -Path $ZipPath
 $hashLines += "$zipHash  ExcelCellSummaryTool-v$Version-win64-portable.zip"
 if (Test-Path -LiteralPath $SetupPath) {
-    $setupHash = (Get-FileHash -LiteralPath $SetupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $setupHash = Get-Sha256Hex -Path $SetupPath
     $hashLines += "$setupHash  ExcelCellSummaryTool-v$Version-win64-setup.exe"
 }
 $hashLines | Set-Content -LiteralPath $HashPath -Encoding ASCII

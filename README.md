@@ -63,6 +63,10 @@ python -m pytest
 build.bat
 ```
 
+## 许可证
+
+本项目使用 MIT License，版权主体为 `Yon9e`。
+
 ## 注意事项
 
 - 当前版本执行非递归扫描。
