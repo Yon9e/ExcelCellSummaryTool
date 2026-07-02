@@ -5,9 +5,19 @@ from __future__ import annotations
 from typing import Any
 
 
+PREFERRED_UI_FONTS = (
+    "Noto Sans SC",
+    "HarmonyOS Sans SC",
+    "MiSans",
+    "Inter",
+    "Segoe UI",
+    "Microsoft YaHei UI",
+)
+
+
 APP_STYLE = """
 * {
-    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-family: "Noto Sans SC", "HarmonyOS Sans SC", "MiSans", "Inter", "Segoe UI", "Microsoft YaHei UI", sans-serif;
 }
 QMainWindow {
     background: #0a1320;
@@ -55,7 +65,7 @@ QWidget#runPage {
 QLabel#sidebarTitleLabel {
     color: #ffffff;
     font-size: 16pt;
-    font-weight: 800;
+    font-weight: 700;
 }
 QLabel#sidebarSubtitleLabel,
 QLabel#sidebarHintLabel,
@@ -77,7 +87,7 @@ QLabel#sidebarHintLabel {
 QLabel#titleLabel {
     color: #ffffff;
     font-size: 22pt;
-    font-weight: 800;
+    font-weight: 700;
 }
 QLabel#schemeSectionTitleLabel,
 QLabel#sourceSectionTitleLabel,
@@ -85,7 +95,7 @@ QLabel#rulesSectionTitleLabel,
 QLabel#logSectionTitleLabel {
     color: #ffffff;
     font-size: 15pt;
-    font-weight: 800;
+    font-weight: 700;
 }
 QLabel {
     color: #edf4ff;
@@ -97,7 +107,7 @@ QPushButton {
     border-radius: 8px;
     padding: 8px 14px;
     color: #f2f6ff;
-    font-weight: 700;
+    font-weight: 600;
 }
 QPushButton:hover {
     background: #223653;
@@ -131,14 +141,14 @@ QPushButton#navRunButton[active="true"] {
         stop:0 #1e426c, stop:1 #183657);
     color: #dbeeff;
     border-color: #37679b;
-    font-weight: 800;
+    font-weight: 700;
 }
 QPushButton#startButton {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
         stop:0 #4fd5b7, stop:0.52 #45c4e8, stop:1 #4e8ff5);
     color: #031312;
     border-color: #70d8ec;
-    font-weight: 800;
+    font-weight: 700;
 }
 QPushButton#navSchemeButton[active="true"],
 QPushButton#navSourceButton[active="true"],
@@ -242,7 +252,7 @@ QHeaderView::section {
     border: 0;
     border-right: 1px solid #30455f;
     border-bottom: 1px solid #30455f;
-    font-weight: 800;
+    font-weight: 700;
 }
 QTableCornerButton::section {
     background: #18263a;
@@ -305,16 +315,28 @@ QMessageBox {
 """
 
 
+def _preferred_ui_font() -> str:
+    """选择最接近现代产品界面的可用字体。"""
+    from PySide6.QtGui import QFontDatabase
+
+    available_fonts = set(QFontDatabase.families())
+    for font_name in PREFERRED_UI_FONTS:
+        if font_name in available_fonts:
+            return font_name
+    return "Microsoft YaHei UI"
+
+
 def apply_desktop_theme(app: Any) -> None:
     """应用 qt-material 深色主题，并叠加本项目样式。"""
     from PySide6.QtGui import QFont
 
-    app.setFont(QFont("Microsoft YaHei UI", 10))
+    ui_font = _preferred_ui_font()
+    app.setFont(QFont(ui_font, 10))
     try:
         from qt_material import apply_stylesheet
 
         apply_stylesheet(app, theme="dark_cyan.xml", style="Fusion")
     except Exception:
         app.setStyle("Fusion")
-    app.setFont(QFont("Microsoft YaHei UI", 10))
+    app.setFont(QFont(ui_font, 10))
     app.setStyleSheet(f"{app.styleSheet()}\n{APP_STYLE}")
