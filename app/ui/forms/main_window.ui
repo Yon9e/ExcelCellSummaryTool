@@ -51,7 +51,7 @@
        </size>
       </property>
       <property name="frameShape">
-       <enum>QFrame::Shape::StyledPanel</enum>
+       <enum>QFrame::Shape::NoFrame</enum>
       </property>
       <layout class="QVBoxLayout" name="sidebarLayout">
        <property name="spacing">
@@ -175,7 +175,7 @@
           </size>
          </property>
          <property name="frameShape">
-          <enum>QFrame::Shape::StyledPanel</enum>
+          <enum>QFrame::Shape::NoFrame</enum>
          </property>
          <layout class="QHBoxLayout" name="headerLayout">
           <property name="leftMargin">
@@ -259,7 +259,7 @@
             <item>
              <widget class="QFrame" name="schemeGroupBox">
               <property name="frameShape">
-               <enum>QFrame::Shape::StyledPanel</enum>
+               <enum>QFrame::Shape::NoFrame</enum>
               </property>
               <layout class="QVBoxLayout" name="schemeLayout">
                <property name="spacing">
@@ -404,7 +404,7 @@
             <item>
              <widget class="QFrame" name="sourceGroupBox">
               <property name="frameShape">
-               <enum>QFrame::Shape::StyledPanel</enum>
+               <enum>QFrame::Shape::NoFrame</enum>
               </property>
               <layout class="QVBoxLayout" name="sourceLayout">
                <property name="spacing">
@@ -543,7 +543,7 @@
             <item>
              <widget class="QFrame" name="rulesGroupBox">
               <property name="frameShape">
-               <enum>QFrame::Shape::StyledPanel</enum>
+               <enum>QFrame::Shape::NoFrame</enum>
               </property>
               <layout class="QVBoxLayout" name="rulesLayout">
                <property name="spacing">
@@ -688,7 +688,7 @@
             <item>
              <widget class="QFrame" name="logGroupBox">
               <property name="frameShape">
-               <enum>QFrame::Shape::StyledPanel</enum>
+               <enum>QFrame::Shape::NoFrame</enum>
               </property>
               <layout class="QVBoxLayout" name="logLayout">
                <property name="spacing">

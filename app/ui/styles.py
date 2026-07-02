@@ -16,11 +16,11 @@ QMainWindow {
 }
 QWidget#centralwidget {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #172640, stop:0.42 #101c2d, stop:1 #0c2530);
+        stop:0 #152743, stop:0.45 #0f1f33, stop:1 #092733);
 }
 QFrame#sidebarFrame {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 #172949, stop:0.55 #15243b, stop:1 #111d2e);
+        stop:0 #152b4c, stop:0.55 #142640, stop:1 #0f2034);
     border: 0;
     border-right: 1px solid #263a5a;
     border-radius: 0;
@@ -34,9 +34,10 @@ QFrame#schemeGroupBox,
 QFrame#sourceGroupBox,
 QFrame#rulesGroupBox,
 QFrame#logGroupBox {
-    background: transparent;
-    border: 0;
-    border-radius: 0;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #12253c, stop:0.52 #0e2034, stop:1 #0b1c2d);
+    border: 1px solid #284462;
+    border-radius: 8px;
 }
 QFrame#contentFrame {
     background: transparent;
@@ -44,6 +45,12 @@ QFrame#contentFrame {
 QStackedWidget#contentStack {
     background: transparent;
     border: 0;
+}
+QWidget#schemePage,
+QWidget#sourcePage,
+QWidget#rulesPage,
+QWidget#runPage {
+    background: transparent;
 }
 QLabel#sidebarTitleLabel {
     color: #ffffff;
@@ -120,9 +127,10 @@ QPushButton#navSchemeButton[active="true"],
 QPushButton#navSourceButton[active="true"],
 QPushButton#navRulesButton[active="true"],
 QPushButton#navRunButton[active="true"] {
-    background: #1f3a66;
-    color: #58a3ff;
-    border-color: #264a7d;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #1e426c, stop:1 #183657);
+    color: #dbeeff;
+    border-color: #37679b;
     font-weight: 800;
 }
 QPushButton#startButton {
@@ -136,13 +144,17 @@ QPushButton#navSchemeButton[active="true"],
 QPushButton#navSourceButton[active="true"],
 QPushButton#navRulesButton[active="true"],
 QPushButton#navRunButton[active="true"] {
-    border-left: 3px solid #58a3ff;
+    border-left: 3px solid #65b9ff;
     padding-left: 17px;
 }
 QPushButton#navSchemeButton[active="true"]:hover,
 QPushButton#navSourceButton[active="true"]:hover,
 QPushButton#navRulesButton[active="true"]:hover,
-QPushButton#navRunButton[active="true"]:hover,
+QPushButton#navRunButton[active="true"]:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #24517f, stop:1 #1b4269);
+    border-color: #4f87c4;
+}
 QPushButton#startButton:hover {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
         stop:0 #62e2c7, stop:0.55 #60d6f3, stop:1 #72a9ff);
