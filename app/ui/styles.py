@@ -6,18 +6,18 @@ from typing import Any
 
 
 PREFERRED_UI_FONTS = (
-    "Noto Sans SC",
+    "Microsoft YaHei UI",
+    "Segoe UI Variable",
+    "Segoe UI",
     "HarmonyOS Sans SC",
     "MiSans",
-    "Inter",
-    "Segoe UI",
-    "Microsoft YaHei UI",
+    "Noto Sans SC",
 )
 
 
 APP_STYLE = """
 * {
-    font-family: "Noto Sans SC", "HarmonyOS Sans SC", "MiSans", "Inter", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    font-family: "Microsoft YaHei UI", "Segoe UI Variable", "Segoe UI", "HarmonyOS Sans SC", "MiSans", "Noto Sans SC", sans-serif;
 }
 QMainWindow {
     background: #0a1320;
@@ -75,7 +75,8 @@ QLabel#countLabel,
 QLabel#schemeSectionHintLabel,
 QLabel#sourceSectionHintLabel,
 QLabel#rulesSectionHintLabel {
-    color: #b6c6dc;
+    color: #c8d7ea;
+    font-weight: 500;
 }
 QLabel#sidebarHintLabel {
     background: rgba(19, 34, 55, 0.78);
@@ -130,8 +131,9 @@ QPushButton#navRunButton {
     min-height: 42px;
     background: transparent;
     border: 1px solid transparent;
-    color: #b8c6dc;
+    color: #c6d4e8;
     font-size: 11pt;
+    font-weight: 500;
 }
 QPushButton#navSchemeButton[active="true"],
 QPushButton#navSourceButton[active="true"],
@@ -326,17 +328,27 @@ def _preferred_ui_font() -> str:
     return "Microsoft YaHei UI"
 
 
-def apply_desktop_theme(app: Any) -> None:
-    """应用 qt-material 深色主题，并叠加本项目样式。"""
+def _build_ui_font(font_name: str) -> Any:
+    """构建深色界面下更清晰的小字号字体。"""
     from PySide6.QtGui import QFont
 
+    font = QFont(font_name, 10)
+    font.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
+    font.setStyleStrategy(
+        QFont.StyleStrategy.PreferAntialias | QFont.StyleStrategy.NoSubpixelAntialias
+    )
+    return font
+
+
+def apply_desktop_theme(app: Any) -> None:
+    """应用 qt-material 深色主题，并叠加本项目样式。"""
     ui_font = _preferred_ui_font()
-    app.setFont(QFont(ui_font, 10))
+    app.setFont(_build_ui_font(ui_font))
     try:
         from qt_material import apply_stylesheet
 
         apply_stylesheet(app, theme="dark_cyan.xml", style="Fusion")
     except Exception:
         app.setStyle("Fusion")
-    app.setFont(QFont(ui_font, 10))
+    app.setFont(_build_ui_font(ui_font))
     app.setStyleSheet(f"{app.styleSheet()}\n{APP_STYLE}")
