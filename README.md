@@ -1,76 +1,80 @@
 # Excel 单元格定向汇总工具
 
-Excel 单元格定向汇总工具是一款面向审计、财务和办公自动化场景的 Windows 桌面软件。它可以批量读取指定文件夹下的 Excel 文件，根据用户配置的规则定位 Sheet 和单元格，并将结果汇总输出到一个 Excel 工作簿。
-
-## 截图
-
-首次发布后可在此补充主界面截图。
+一个面向审计、财务和办公自动化场景的 Windows 桌面工具。软件批量读取目标文件夹中的 Excel 文件，按规则定位指定 Sheet 与单元格，并输出汇总结果工作簿。
 
 ## 技术栈
 
-- PySide6
-- Qt Designer
-- pyside6-uic
-- pyside6-deploy / Nuitka
-- Inno Setup
+- Tauri 2
+- React 19
+- TypeScript
+- CSS / Tailwind CSS
+- Rust
+- calamine
+- rust_xlsxwriter
 
-## 适用系统
+界面设计采用深色生产力工具风格：左侧导航、内容窗格、清晰按钮层级、低干扰面板和 WebView 字体渲染，设计方向参考 Cockpit Tools 这类现代 Tauri 应用的共性思路，不复制其品牌元素。
 
-Windows 10 / Windows 11。
+## 下载
 
-## 下载方式
+从 GitHub Releases 下载最新版：
 
-从 GitHub Releases 下载最新版 `setup.exe` 或 portable zip。
+- 安装版：`ExcelCellSummaryTool-v0.1.0-win64-setup.exe`
+- 免安装版：`ExcelCellSummaryTool-v0.1.0-win64-portable.zip`
 
 ## 使用方法
 
-安装版：运行 `ExcelCellSummaryTool-v0.1.0-win64-setup.exe`。
-
-免安装版：解压 `ExcelCellSummaryTool-v0.1.0-win64-portable.zip`，双击 `ExcelCellSummaryTool.exe`。
-
-日常使用流程：
-
-1. 选择目标文件夹。
-2. 选择输出 Excel 文件。
-3. 设置文件名关键词和包含/排除模式。
-4. 配置规则表格。
-5. 点击“开始汇总”。
+1. 打开软件。
+2. 在“数据源配置”选择目标文件夹。
+3. 选择输出 `.xlsx` 文件。
+4. 按需填写文件名关键词，并选择“包含关键词”或“排除关键词”。
+5. 在“规则配置”维护输出列名、Sheet 模式、Sheet 值和单元格。
+6. 在“执行与日志”点击“开始汇总”。
 
 ## 规则说明
 
-- `exact`：Sheet 名精确匹配。
-- `contains`：Sheet 名包含关键词，命中第一个符合条件的 Sheet。
-- `index`：按 Sheet 顺序定位，`1` 表示第一个 Sheet。
+每条规则包含：
 
-单元格地址使用标准 Excel 地址，例如 `B7`、`C10`、`AA20`。
+- `输出列名`：写入结果表的列名。
+- `Sheet 模式`：
+  - `exact`：Sheet 名精确匹配。
+  - `contains`：Sheet 名包含关键词。
+  - `index`：按 Sheet 序号定位，`1` 表示第一个 Sheet。
+- `Sheet 值`：Sheet 名、关键词或序号。
+- `单元格`：例如 `B7`、`C12`、`AA20`。
+
+## 支持文件
+
+- `.xlsx`
+- `.xlsm`
+- `.xltx`
+- `.xltm`
+
+软件会跳过 Excel 临时文件。公式单元格读取的是工作簿已保存的缓存值，本工具不负责重新计算公式。
 
 ## 源码运行
 
 ```powershell
-python scripts\compile_ui.py
-python -m app.main
+npm install
+npm run tauri:dev
 ```
 
-## 本地测试
+## 本地验证
 
 ```powershell
-python -m pytest
+npm run build
+cd src-tauri
+cargo test
 ```
 
 ## 本地打包
 
 ```powershell
-build.bat
+.\build.bat
 ```
 
-## 许可证
+打包产物：
 
-本项目使用 MIT License，版权主体为 `Yon9e`。
-
-## 注意事项
-
-- 当前版本执行非递归扫描。
-- 请勿在 Excel 打开状态下覆盖输出文件。
-- 请不要选择包含敏感数据的测试文件提交到仓库。
-- 中文路径、中文文件名和中文 Sheet 名应正常支持。
-- 公式单元格读取的是工作簿已保存的缓存值，本工具不负责重新计算公式。
+- `release\portable\ExcelCellSummaryTool\ExcelCellSummaryTool.exe`
+- `release\ExcelCellSummaryTool-v0.1.0-win64-portable.zip`
+- `release\ExcelCellSummaryTool-v0.1.0-win64-setup.exe`
+- `release\SHA256SUMS.txt`
