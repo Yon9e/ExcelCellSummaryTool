@@ -24,6 +24,7 @@ export interface SummaryRequest {
   keyword: string;
   filter_mode: FilterMode;
   rules: Rule[];
+  sheet_choices: SheetChoice[];
 }
 
 export interface SummaryResult {
@@ -44,4 +45,19 @@ export interface ProgressEvent {
 
 export interface CurrentFileEvent {
   path: string;
+}
+
+export interface SheetChoice {
+  file_path: string;
+  rule_index: number;
+  sheet_name: string;
+}
+
+export interface SheetConflict {
+  file_path: string;
+  file_name: string;
+  rule_index: number;
+  output_column: string;
+  sheet_value: string;
+  matched_sheets: string[];
 }

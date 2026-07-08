@@ -81,10 +81,8 @@ mod tests {
 
     #[test]
     fn filters_excel_files_and_keywords() {
-        let root = std::env::temp_dir().join(format!(
-            "excel-cell-filter-test-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("excel-cell-filter-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("北京报表.xlsx"), "x").unwrap();

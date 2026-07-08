@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  excel_cell_summary_tool_lib::run();
+    excel_cell_summary_tool_lib::run();
 }

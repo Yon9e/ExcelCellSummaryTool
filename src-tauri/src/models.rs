@@ -95,6 +95,8 @@ pub struct SummaryRequest {
     pub keyword: String,
     pub filter_mode: String,
     pub rules: Vec<Rule>,
+    #[serde(default)]
+    pub sheet_choices: Vec<SheetChoice>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +104,23 @@ pub struct SummaryResult {
     pub output_path: String,
     pub total_files: usize,
     pub processed_files: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SheetChoice {
+    pub file_path: String,
+    pub rule_index: usize,
+    pub sheet_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SheetConflict {
+    pub file_path: String,
+    pub file_name: String,
+    pub rule_index: usize,
+    pub output_column: String,
+    pub sheet_value: String,
+    pub matched_sheets: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -7,8 +7,8 @@ use rust_xlsxwriter::{Color, Format, Workbook, Worksheet};
 
 use crate::file_filter::list_excel_files;
 use crate::models::{
-    parse_cell_address, validate_rules, LogEvent, ProgressEvent, Rule, SummaryRequest,
-    SummaryResult, SHEET_MODE_CONTAINS, SHEET_MODE_EXACT, SHEET_MODE_INDEX,
+    parse_cell_address, validate_rules, LogEvent, ProgressEvent, Rule, SheetChoice, SheetConflict,
+    SummaryRequest, SummaryResult, SHEET_MODE_CONTAINS, SHEET_MODE_EXACT, SHEET_MODE_INDEX,
 };
 
 #[derive(Debug, Clone)]
@@ -66,7 +66,14 @@ where
                     .unwrap_or_default()
             ),
         });
-        write_file_row(worksheet, processed as u32, file_path, &rules, &log)?;
+        write_file_row(
+            worksheet,
+            processed as u32,
+            file_path,
+            &rules,
+            &request.sheet_choices,
+            &log,
+        )?;
         progress(ProgressEvent { processed, total });
     }
 
@@ -88,6 +95,54 @@ where
         total_files: total,
         processed_files: processed,
     })
+}
+
+pub fn collect_sheet_conflicts(request: &SummaryRequest) -> Result<Vec<SheetConflict>, String> {
+    let rules = validate_rules(&request.rules)?;
+    let files = list_excel_files(
+        &request.target_folder,
+        &request.keyword,
+        &request.filter_mode,
+    )?;
+    let mut conflicts = Vec::new();
+
+    for file_path in files {
+        let Ok(workbook_file) = File::open(&file_path) else {
+            continue;
+        };
+        let Ok(workbook) = Xlsx::new(BufReader::new(workbook_file)) else {
+            continue;
+        };
+        let sheet_names = workbook.sheet_names().to_vec();
+        for (rule_index, rule) in rules.iter().enumerate() {
+            if rule.sheet_mode != SHEET_MODE_CONTAINS {
+                continue;
+            }
+            let matched_sheets: Vec<String> = sheet_names
+                .iter()
+                .filter(|name| name.contains(&rule.sheet_value))
+                .cloned()
+                .collect();
+            if matched_sheets.len() > 1
+                && find_sheet_choice(&request.sheet_choices, &file_path, rule_index).is_none()
+            {
+                conflicts.push(SheetConflict {
+                    file_path: file_path.to_string_lossy().to_string(),
+                    file_name: file_path
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    rule_index,
+                    output_column: rule.output_column.clone(),
+                    sheet_value: rule.sheet_value.clone(),
+                    matched_sheets,
+                });
+            }
+        }
+    }
+
+    Ok(conflicts)
 }
 
 fn normalize_output_path(output_file: &str) -> Result<PathBuf, String> {
@@ -154,6 +209,7 @@ fn write_file_row<FLog>(
     row: u32,
     file_path: &Path,
     rules: &[Rule],
+    sheet_choices: &[SheetChoice],
     log: &FLog,
 ) -> Result<(), String>
 where
@@ -170,14 +226,19 @@ where
         .write_string(row, 1, file_path.to_string_lossy().as_ref())
         .map_err(|error| error.to_string())?;
 
-    let values = read_file_values(file_path, rules, log);
+    let values = read_file_values(file_path, rules, sheet_choices, log);
     for (index, value) in values.into_iter().enumerate() {
         write_cell_value(worksheet, row, (index + 2) as u16, value)?;
     }
     Ok(())
 }
 
-fn read_file_values<FLog>(file_path: &Path, rules: &[Rule], log: &FLog) -> Vec<CellValue>
+fn read_file_values<FLog>(
+    file_path: &Path,
+    rules: &[Rule],
+    sheet_choices: &[SheetChoice],
+    log: &FLog,
+) -> Vec<CellValue>
 where
     FLog: Fn(LogEvent),
 {
@@ -209,14 +270,26 @@ where
 
     rules
         .iter()
-        .map(|rule| read_rule_value(&mut workbook, rule, file_path, log))
+        .enumerate()
+        .map(|(rule_index, rule)| {
+            read_rule_value(
+                &mut workbook,
+                rule_index,
+                rule,
+                file_path,
+                sheet_choices,
+                log,
+            )
+        })
         .collect()
 }
 
 fn read_rule_value<FLog, R>(
     workbook: &mut Xlsx<R>,
+    rule_index: usize,
     rule: &Rule,
     file_path: &Path,
+    sheet_choices: &[SheetChoice],
     log: &FLog,
 ) -> CellValue
 where
@@ -224,7 +297,8 @@ where
     FLog: Fn(LogEvent),
 {
     let sheet_names = workbook.sheet_names().to_vec();
-    let Some(sheet_name) = locate_sheet(&sheet_names, rule) else {
+    let Some(sheet_name) = locate_sheet(&sheet_names, rule_index, rule, file_path, sheet_choices)
+    else {
         log(LogEvent {
             level: "WARN".to_string(),
             message: format!(
@@ -260,7 +334,18 @@ where
     }
 }
 
-fn locate_sheet(sheet_names: &[String], rule: &Rule) -> Option<String> {
+fn locate_sheet(
+    sheet_names: &[String],
+    rule_index: usize,
+    rule: &Rule,
+    file_path: &Path,
+    sheet_choices: &[SheetChoice],
+) -> Option<String> {
+    if let Some(choice) = find_sheet_choice(sheet_choices, file_path, rule_index) {
+        if sheet_names.iter().any(|name| name == &choice.sheet_name) {
+            return Some(choice.sheet_name.clone());
+        }
+    }
     match rule.sheet_mode.as_str() {
         SHEET_MODE_EXACT => sheet_names
             .iter()
@@ -276,6 +361,17 @@ fn locate_sheet(sheet_names: &[String], rule: &Rule) -> Option<String> {
         }
         _ => None,
     }
+}
+
+fn find_sheet_choice<'a>(
+    sheet_choices: &'a [SheetChoice],
+    file_path: &Path,
+    rule_index: usize,
+) -> Option<&'a SheetChoice> {
+    let file_path = file_path.to_string_lossy();
+    sheet_choices
+        .iter()
+        .find(|choice| choice.rule_index == rule_index && choice.file_path == file_path)
 }
 
 fn data_to_cell_value(data: &Data) -> CellValue {
@@ -326,14 +422,12 @@ mod tests {
     use std::fs;
 
     use super::*;
-    use crate::models::{FILTER_MODE_INCLUDE, SHEET_MODE_EXACT};
+    use crate::models::{FILTER_MODE_INCLUDE, SHEET_MODE_CONTAINS, SHEET_MODE_EXACT};
 
     #[test]
     fn summarizes_xlsx_cells_to_output_workbook() {
-        let root = std::env::temp_dir().join(format!(
-            "excel-summary-e2e-test-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("excel-summary-e2e-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
 
@@ -356,6 +450,7 @@ mod tests {
                 sheet_value: "资产负债表".to_string(),
                 cell: "B7".to_string(),
             }],
+            sheet_choices: Vec::new(),
         };
 
         let result = run_summary(request, |_| {}, |_| {}, |_| {}).unwrap();
@@ -371,6 +466,47 @@ mod tests {
             Some(&Data::String("货币资金".to_string()))
         );
         assert_eq!(range.get_value((1, 2)), Some(&Data::Float(123.45)));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn reports_multiple_contains_sheet_matches_before_summary() {
+        let root = std::env::temp_dir().join(format!(
+            "excel-summary-conflict-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+
+        let input_path = root.join("多表报表.xlsx");
+        let mut input_workbook = Workbook::new();
+        let first = input_workbook.add_worksheet();
+        first.set_name("利润表").unwrap();
+        first.write_number(0, 0, 10.0).unwrap();
+        let second = input_workbook.add_worksheet();
+        second.set_name("合并利润表").unwrap();
+        second.write_number(0, 0, 20.0).unwrap();
+        input_workbook.save(&input_path).unwrap();
+
+        let request = SummaryRequest {
+            target_folder: root.to_string_lossy().to_string(),
+            output_file: root.join("汇总.xlsx").to_string_lossy().to_string(),
+            keyword: "报表".to_string(),
+            filter_mode: FILTER_MODE_INCLUDE.to_string(),
+            rules: vec![Rule {
+                output_column: "营业收入".to_string(),
+                sheet_mode: SHEET_MODE_CONTAINS.to_string(),
+                sheet_value: "利润".to_string(),
+                cell: "A1".to_string(),
+            }],
+            sheet_choices: Vec::new(),
+        };
+
+        let conflicts = collect_sheet_conflicts(&request).unwrap();
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].rule_index, 0);
+        assert_eq!(conflicts[0].matched_sheets, vec!["利润表", "合并利润表"]);
 
         let _ = fs::remove_dir_all(&root);
     }

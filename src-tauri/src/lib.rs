@@ -17,6 +17,7 @@ pub fn run() {
             save_scheme,
             delete_scheme,
             path_exists,
+            collect_sheet_conflicts,
             run_summary
         ])
         .run(tauri::generate_context!())
@@ -30,7 +31,9 @@ mod scheme_store;
 
 use std::path::Path;
 
-use models::{CurrentFileEvent, LogEvent, ProgressEvent, Scheme, SummaryRequest, SummaryResult};
+use models::{
+    CurrentFileEvent, LogEvent, ProgressEvent, Scheme, SheetConflict, SummaryRequest, SummaryResult,
+};
 use tauri::{Emitter, Window};
 
 #[tauri::command]
@@ -51,6 +54,11 @@ fn delete_scheme(name: String) -> Result<bool, String> {
 #[tauri::command]
 fn path_exists(path: String) -> bool {
     Path::new(path.trim()).exists()
+}
+
+#[tauri::command]
+fn collect_sheet_conflicts(request: SummaryRequest) -> Result<Vec<SheetConflict>, String> {
+    excel_summary::collect_sheet_conflicts(&request)
 }
 
 #[tauri::command]

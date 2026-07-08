@@ -24,10 +24,13 @@ import type {
   ProgressEvent,
   Rule,
   Scheme,
+  SheetChoice,
+  SheetConflict,
   SheetMode,
   SummaryRequest,
   SummaryResult,
 } from "./types";
+import { getRuleRowKey } from "./ruleKeys";
 
 const emptyRule: Rule = {
   output_column: "",
@@ -57,6 +60,21 @@ const sampleRules: Rule[] = [
   },
 ];
 
+function getSheetConflictKey(conflict: SheetConflict): string {
+  return `${conflict.file_path}::${conflict.rule_index}`;
+}
+
+function buildSheetChoices(
+  conflicts: SheetConflict[],
+  selectedSheets: Record<string, string>,
+): SheetChoice[] {
+  return conflicts.map((conflict) => ({
+    file_path: conflict.file_path,
+    rule_index: conflict.rule_index,
+    sheet_name: selectedSheets[getSheetConflictKey(conflict)] ?? conflict.matched_sheets[0],
+  }));
+}
+
 const pages: Array<{
   key: PageKey;
   label: string;
@@ -84,6 +102,9 @@ function App() {
   const [processed, setProcessed] = useState(0);
   const [total, setTotal] = useState(0);
   const [running, setRunning] = useState(false);
+  const [sheetConflicts, setSheetConflicts] = useState<SheetConflict[]>([]);
+  const [selectedSheets, setSelectedSheets] = useState<Record<string, string>>({});
+  const [pendingRequest, setPendingRequest] = useState<SummaryRequest | null>(null);
 
   const activeTitle = pages.find((page) => page.key === activePage)?.label ?? "";
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
@@ -232,6 +253,7 @@ function App() {
       keyword,
       filter_mode: filterMode,
       rules,
+      sheet_choices: [],
     };
 
     if (!targetFolder || !outputFile) {
@@ -259,6 +281,33 @@ function App() {
       }
     }
 
+    try {
+      const conflicts = await invoke<SheetConflict[]>("collect_sheet_conflicts", { request });
+      if (conflicts.length > 0) {
+        const initialSheets = Object.fromEntries(
+          conflicts.map((conflict) => [
+            getSheetConflictKey(conflict),
+            conflict.matched_sheets[0],
+          ]),
+        );
+        setSelectedSheets(initialSheets);
+        setSheetConflicts(conflicts);
+        setPendingRequest(request);
+        appendLog(
+          "WARN",
+          `发现 ${conflicts.length} 处 Sheet 关键词命中多个 Sheet，请选择后继续。`,
+        );
+        return;
+      }
+    } catch (error) {
+      await message(String(error), { title: "Sheet 冲突检查失败", kind: "error" });
+      return;
+    }
+
+    await executeSummary(request);
+  }
+
+  async function executeSummary(request: SummaryRequest) {
     setRunning(true);
     setProcessed(0);
     setTotal(0);
@@ -277,6 +326,27 @@ function App() {
     } finally {
       setRunning(false);
     }
+  }
+
+  function cancelSheetChoice() {
+    setSheetConflicts([]);
+    setSelectedSheets({});
+    setPendingRequest(null);
+    appendLog("INFO", "已取消 Sheet 选择。");
+  }
+
+  async function continueWithSheetChoices() {
+    if (!pendingRequest) {
+      return;
+    }
+    const request: SummaryRequest = {
+      ...pendingRequest,
+      sheet_choices: buildSheetChoices(sheetConflicts, selectedSheets),
+    };
+    setSheetConflicts([]);
+    setSelectedSheets({});
+    setPendingRequest(null);
+    await executeSummary(request);
   }
 
   return (
@@ -461,7 +531,7 @@ function App() {
                 <tbody>
                   {rules.map((rule, index) => (
                     <tr
-                      key={`${index}-${rule.output_column}`}
+                      key={getRuleRowKey(index)}
                       className={selectedRuleIndex === index ? "selected-row" : ""}
                       onClick={() => setSelectedRuleIndex(index)}
                     >
@@ -530,6 +600,56 @@ function App() {
           )}
         </section>
       </main>
+
+      {sheetConflicts.length > 0 && pendingRequest && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="sheet-modal" role="dialog" aria-modal="true">
+            <div className="sheet-modal-heading">
+              <div>
+                <p className="eyebrow">Sheet 匹配冲突</p>
+                <h3>请选择实际要读取的 Sheet</h3>
+              </div>
+              <span>{sheetConflicts.length} 项</span>
+            </div>
+            <div className="sheet-conflict-list">
+              {sheetConflicts.map((conflict) => {
+                const key = getSheetConflictKey(conflict);
+                return (
+                  <label className="sheet-conflict-item" key={key}>
+                    <span>
+                      {conflict.file_name} / {conflict.output_column} / 关键词：
+                      {conflict.sheet_value}
+                    </span>
+                    <select
+                      value={selectedSheets[key] ?? conflict.matched_sheets[0]}
+                      onChange={(event) =>
+                        setSelectedSheets((items) => ({
+                          ...items,
+                          [key]: event.target.value,
+                        }))
+                      }
+                    >
+                      {conflict.matched_sheets.map((sheetName) => (
+                        <option key={sheetName} value={sheetName}>
+                          {sheetName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="modal-actions">
+              <button className="soft-button" onClick={cancelSheetChoice}>
+                取消
+              </button>
+              <button className="primary-button" onClick={() => void continueWithSheetChoices()}>
+                使用选择继续汇总
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

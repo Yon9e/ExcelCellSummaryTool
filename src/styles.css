@@ -441,3 +441,94 @@ td select {
   line-height: 1.62;
   white-space: pre-wrap;
 }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 34px;
+  background: rgba(3, 9, 18, 0.68);
+  backdrop-filter: blur(8px);
+}
+
+.sheet-modal {
+  display: flex;
+  width: min(880px, 92vw);
+  max-height: 78vh;
+  flex-direction: column;
+  gap: 22px;
+  padding: 26px;
+  border: 1px solid rgba(92, 130, 182, 0.48);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(22, 40, 66, 0.98), rgba(12, 26, 44, 0.98)),
+    #0d1c30;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+}
+
+.sheet-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.sheet-modal-heading h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.sheet-modal-heading > span {
+  display: inline-flex;
+  min-width: 56px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(82, 165, 255, 0.38);
+  border-radius: 999px;
+  color: #82bdff;
+  background: rgba(35, 73, 125, 0.42);
+  font-size: 14px;
+  font-weight: 780;
+}
+
+.sheet-conflict-list {
+  display: grid;
+  max-height: 48vh;
+  gap: 12px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.sheet-conflict-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid rgba(91, 130, 183, 0.34);
+  border-radius: 14px;
+  background: rgba(9, 20, 36, 0.62);
+}
+
+.sheet-conflict-item > span {
+  min-width: 0;
+  overflow: hidden;
+  color: #dce9fb;
+  font-size: 15px;
+  font-weight: 660;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+}
