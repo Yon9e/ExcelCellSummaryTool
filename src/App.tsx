@@ -31,6 +31,7 @@ import type {
   SummaryResult,
 } from "./types";
 import { getRuleRowKey } from "./ruleKeys";
+import { getSummaryCompletionPrompt } from "./summaryPrompt";
 
 const emptyRule: Rule = {
   output_column: "",
@@ -319,7 +320,13 @@ function App() {
         "DONE",
         `处理完成：${result.processed_files}/${result.total_files}，输出 ${result.output_path}`,
       );
-      await message("汇总完成。", { title: "执行完成", kind: "info" });
+      const shouldOpen = await confirm(getSummaryCompletionPrompt(), {
+        title: "执行完成",
+        kind: "info",
+      });
+      if (shouldOpen) {
+        await invoke("open_output_file", { path: result.output_path });
+      }
     } catch (error) {
       appendLog("ERROR", String(error));
       await message(String(error), { title: "汇总失败", kind: "error" });

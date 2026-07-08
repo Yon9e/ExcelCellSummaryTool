@@ -18,6 +18,7 @@ pub fn run() {
             delete_scheme,
             path_exists,
             collect_sheet_conflicts,
+            open_output_file,
             run_summary
         ])
         .run(tauri::generate_context!())
@@ -29,7 +30,8 @@ mod file_filter;
 mod models;
 mod scheme_store;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use models::{
     CurrentFileEvent, LogEvent, ProgressEvent, Scheme, SheetConflict, SummaryRequest, SummaryResult,
@@ -61,6 +63,54 @@ fn collect_sheet_conflicts(request: SummaryRequest) -> Result<Vec<SheetConflict>
     excel_summary::collect_sheet_conflicts(&request)
 }
 
+fn validate_openable_file_path(path: &str) -> Result<PathBuf, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("输出文件路径不能为空。".to_string());
+    }
+    let output_path = PathBuf::from(trimmed);
+    if !output_path.exists() {
+        return Err(format!("文件不存在，无法打开：{}", output_path.display()));
+    }
+    if !output_path.is_file() {
+        return Err(format!("目标不是文件，无法打开：{}", output_path.display()));
+    }
+    Ok(output_path)
+}
+
+#[tauri::command]
+fn open_output_file(path: String) -> Result<(), String> {
+    let output_path = validate_openable_file_path(&path)?;
+    open_path_with_default_app(&output_path)
+}
+
+#[cfg(target_os = "windows")]
+fn open_path_with_default_app(path: &Path) -> Result<(), String> {
+    Command::new("cmd")
+        .args(["/C", "start", "", &path.to_string_lossy()])
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("打开输出文件失败：{error}"))
+}
+
+#[cfg(target_os = "macos")]
+fn open_path_with_default_app(path: &Path) -> Result<(), String> {
+    Command::new("open")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("打开输出文件失败：{error}"))
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_path_with_default_app(path: &Path) -> Result<(), String> {
+    Command::new("xdg-open")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("打开输出文件失败：{error}"))
+}
+
 #[tauri::command]
 async fn run_summary(window: Window, request: SummaryRequest) -> Result<SummaryResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -82,4 +132,21 @@ async fn run_summary(window: Window, request: SummaryRequest) -> Result<SummaryR
     })
     .await
     .map_err(|error| format!("后台任务执行失败：{error}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_missing_output_file_before_opening() {
+        let missing_path = std::env::temp_dir().join(format!(
+            "excel-summary-missing-open-target-{}.xlsx",
+            std::process::id()
+        ));
+
+        let error = validate_openable_file_path(&missing_path.to_string_lossy()).unwrap_err();
+
+        assert!(error.contains("文件不存在"));
+    }
 }
