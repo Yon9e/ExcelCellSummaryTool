@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm, message, open, save } from "@tauri-apps/plugin-dialog";
 import {
   BookOpen,
@@ -15,7 +16,6 @@ import {
   Save,
   Settings2,
   Trash2,
-  X,
 } from "lucide-react";
 import type {
   CurrentFileEvent,
@@ -32,9 +32,14 @@ import type {
   SummaryResult,
 } from "./types";
 import { getBrandSubtitle } from "./brandContent";
-import { getHelpManual } from "./helpManual";
 import { getRuleRowKey } from "./ruleKeys";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
+import { SupportWindowContent } from "./SupportWindowContent";
+import {
+  getSupportViewFromSearch,
+  getSupportWindowConfig,
+  type SupportView,
+} from "./supportWindows";
 
 const emptyRule: Rule = {
   output_column: "",
@@ -91,9 +96,13 @@ const pages: Array<{
 ];
 
 const brandSubtitle = getBrandSubtitle();
-const helpManual = getHelpManual();
+const supportView = getSupportViewFromSearch(window.location.search);
 
 function App() {
+  if (supportView !== "main") {
+    return <SupportWindowContent view={supportView} />;
+  }
+
   const [activePage, setActivePage] = useState<PageKey>("source");
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [selectedScheme, setSelectedScheme] = useState("");
@@ -112,7 +121,6 @@ function App() {
   const [sheetConflicts, setSheetConflicts] = useState<SheetConflict[]>([]);
   const [selectedSheets, setSelectedSheets] = useState<Record<string, string>>({});
   const [pendingRequest, setPendingRequest] = useState<SummaryRequest | null>(null);
-  const [helpOpen, setHelpOpen] = useState(false);
 
   const activeTitle = pages.find((page) => page.key === activePage)?.label ?? "";
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
@@ -363,6 +371,21 @@ function App() {
     await executeSummary(request);
   }
 
+  async function openSupportWindow(view: Exclude<SupportView, "main">) {
+    const config = getSupportWindowConfig(view);
+    const existing = await WebviewWindow.getByLabel(config.label);
+    if (existing) {
+      await existing.unminimize();
+      await existing.setFocus();
+      return;
+    }
+    const { label, ...windowOptions } = config;
+    const supportWindow = new WebviewWindow(label, windowOptions);
+    await supportWindow.once("tauri://error", (event) => {
+      appendLog("ERROR", `打开${config.title}窗口失败：${String(event.payload)}`);
+    });
+  }
+
   return (
     <div className="app-shell">
       <aside className="side-nav">
@@ -403,13 +426,16 @@ function App() {
             <h2>Excel 单元格定向汇总工具</h2>
             <p>批量读取 Excel 指定 Sheet 与单元格并汇总输出</p>
           </div>
-          <button
-            className="soft-button"
-            onClick={() => setHelpOpen(true)}
-          >
-            <Info size={19} />
-            帮助说明
-          </button>
+          <div className="window-actions">
+            <button className="soft-button" onClick={() => void openSupportWindow("help")}>
+              <Info size={19} />
+              帮助说明
+            </button>
+            <button className="soft-button" onClick={() => void openSupportWindow("about")}>
+              <FileSpreadsheet size={19} />
+              关于
+            </button>
+          </div>
         </header>
 
         <section className="content-panel">
@@ -660,45 +686,6 @@ function App() {
         </div>
       )}
 
-      {helpOpen && (
-        <div className="modal-backdrop" role="presentation">
-          <div className="help-modal" role="dialog" aria-modal="true" aria-label={helpManual.title}>
-            <div className="help-modal-heading">
-              <div>
-                <p className="eyebrow">Excel 单元格定向汇总工具</p>
-                <h3>{helpManual.title}</h3>
-              </div>
-              <button
-                className="icon-button"
-                aria-label="关闭帮助说明"
-                onClick={() => setHelpOpen(false)}
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="help-manual-body">
-              {helpManual.sections.map((section, sectionIndex) => (
-                <section className="help-section" key={section.title}>
-                  <div className="help-section-index">{sectionIndex + 1}</div>
-                  <div>
-                    <h4>{section.title}</h4>
-                    <ol>
-                      {section.items.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ol>
-                  </div>
-                </section>
-              ))}
-            </div>
-            <div className="modal-actions">
-              <button className="primary-button" onClick={() => setHelpOpen(false)}>
-                我知道了
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

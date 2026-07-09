@@ -181,6 +181,12 @@ button:disabled {
   padding: 0 22px;
 }
 
+.window-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .window-bar h2 {
   margin: 0;
   color: #ffffff;
@@ -629,4 +635,124 @@ td select {
   font-size: 15px;
   font-weight: 560;
   line-height: 1.62;
+}
+
+.support-window-shell {
+  min-height: 100vh;
+  padding: 42px 48px;
+  overflow: auto;
+  color: #edf5ff;
+  background:
+    radial-gradient(circle at 78% 0%, rgba(0, 190, 170, 0.18), transparent 34%),
+    linear-gradient(135deg, #14254a 0%, #0f1d31 46%, #112638 100%);
+}
+
+.support-window-heading {
+  margin-bottom: 28px;
+}
+
+.support-window-heading h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: 820;
+  letter-spacing: 0;
+}
+
+.support-manual-body {
+  overflow: visible;
+  padding-right: 0;
+}
+
+.about-hero {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  margin: 24px auto 42px;
+  text-align: center;
+}
+
+.about-app-mark {
+  display: grid;
+  width: 92px;
+  height: 92px;
+  place-items: center;
+  border-radius: 24px;
+  color: white;
+  background: linear-gradient(145deg, #3478ff, #02b8c8);
+  box-shadow: 0 22px 44px rgba(2, 22, 48, 0.42);
+}
+
+.about-hero h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: 830;
+  letter-spacing: 0;
+}
+
+.about-hero p {
+  margin: 0;
+  color: #9fb3ce;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.version-pill {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid rgba(143, 168, 206, 0.22);
+  border-radius: 999px;
+  color: #c8d8ed;
+  background: rgba(143, 168, 206, 0.16);
+  font-size: 15px;
+  font-weight: 780;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.about-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-height: 168px;
+  padding: 24px;
+  border: 1px solid rgba(91, 130, 183, 0.34);
+  border-radius: 18px;
+  background: rgba(19, 34, 55, 0.78);
+  text-align: center;
+}
+
+.about-card svg {
+  color: #58a6ff;
+}
+
+.about-card h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.about-card p {
+  margin: 0;
+  color: #b5c7df;
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.45;
+}
+
+.about-card span {
+  color: #8295b2;
+  font-size: 13px;
+  font-weight: 560;
+  line-height: 1.45;
 }
