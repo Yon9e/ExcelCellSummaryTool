@@ -15,6 +15,7 @@ import {
   Save,
   Settings2,
   Trash2,
+  X,
 } from "lucide-react";
 import type {
   CurrentFileEvent,
@@ -30,6 +31,8 @@ import type {
   SummaryRequest,
   SummaryResult,
 } from "./types";
+import { getBrandSubtitle } from "./brandContent";
+import { getHelpManual } from "./helpManual";
 import { getRuleRowKey } from "./ruleKeys";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
 
@@ -87,6 +90,9 @@ const pages: Array<{
   { key: "run", label: "执行与日志", icon: Play },
 ];
 
+const brandSubtitle = getBrandSubtitle();
+const helpManual = getHelpManual();
+
 function App() {
   const [activePage, setActivePage] = useState<PageKey>("source");
   const [schemes, setSchemes] = useState<Scheme[]>([]);
@@ -106,6 +112,7 @@ function App() {
   const [sheetConflicts, setSheetConflicts] = useState<SheetConflict[]>([]);
   const [selectedSheets, setSelectedSheets] = useState<Record<string, string>>({});
   const [pendingRequest, setPendingRequest] = useState<SummaryRequest | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const activeTitle = pages.find((page) => page.key === activePage)?.label ?? "";
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
@@ -365,7 +372,7 @@ function App() {
           </div>
           <div>
             <h1>Excel 汇总</h1>
-            <p>审计自动化</p>
+            {brandSubtitle && <p>{brandSubtitle}</p>}
           </div>
         </div>
         <nav className="nav-list">
@@ -398,12 +405,7 @@ function App() {
           </div>
           <button
             className="soft-button"
-            onClick={() =>
-              message(
-                "Sheet 模式：exact 精确匹配；contains 包含关键词；index 按 1 起始序号。公式单元格读取工作簿已保存的缓存值，本工具不重新计算公式。",
-                { title: "帮助说明", kind: "info" },
-              )
-            }
+            onClick={() => setHelpOpen(true)}
           >
             <Info size={19} />
             帮助说明
@@ -652,6 +654,46 @@ function App() {
               </button>
               <button className="primary-button" onClick={() => void continueWithSheetChoices()}>
                 使用选择继续汇总
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {helpOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="help-modal" role="dialog" aria-modal="true" aria-label={helpManual.title}>
+            <div className="help-modal-heading">
+              <div>
+                <p className="eyebrow">Excel 单元格定向汇总工具</p>
+                <h3>{helpManual.title}</h3>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="关闭帮助说明"
+                onClick={() => setHelpOpen(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="help-manual-body">
+              {helpManual.sections.map((section, sectionIndex) => (
+                <section className="help-section" key={section.title}>
+                  <div className="help-section-index">{sectionIndex + 1}</div>
+                  <div>
+                    <h4>{section.title}</h4>
+                    <ol>
+                      {section.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </section>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="primary-button" onClick={() => setHelpOpen(false)}>
+                我知道了
               </button>
             </div>
           </div>
