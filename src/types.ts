@@ -1,6 +1,6 @@
 export type SheetMode = "exact" | "contains" | "index";
 export type FilterMode = "include" | "exclude";
-export type PageKey = "scheme" | "source" | "rules" | "run";
+export type PageKey = "scheme" | "source" | "rules" | "run" | "about";
 
 export interface Rule {
   output_column: string;

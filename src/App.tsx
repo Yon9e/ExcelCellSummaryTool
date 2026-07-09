@@ -5,16 +5,12 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm, message, open, save } from "@tauri-apps/plugin-dialog";
 import {
   BookOpen,
-  Database,
   FileSpreadsheet,
   FolderOpen,
   Info,
-  ListChecks,
-  Play,
   Plus,
   Rocket,
   Save,
-  Settings2,
   Trash2,
 } from "lucide-react";
 import type {
@@ -35,6 +31,8 @@ import { getBrandSubtitle } from "./brandContent";
 import { getRuleRowKey } from "./ruleKeys";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
 import { SupportWindowContent } from "./SupportWindowContent";
+import { AboutPage } from "./AboutPage";
+import { pages } from "./navigation";
 import {
   getSupportViewFromSearch,
   getSupportWindowConfig,
@@ -83,17 +81,6 @@ function buildSheetChoices(
     sheet_name: selectedSheets[getSheetConflictKey(conflict)] ?? conflict.matched_sheets[0],
   }));
 }
-
-const pages: Array<{
-  key: PageKey;
-  label: string;
-  icon: typeof Settings2;
-}> = [
-  { key: "scheme", label: "方案管理", icon: Settings2 },
-  { key: "source", label: "数据源配置", icon: Database },
-  { key: "rules", label: "规则配置", icon: ListChecks },
-  { key: "run", label: "执行与日志", icon: Play },
-];
 
 const brandSubtitle = getBrandSubtitle();
 const supportView = getSupportViewFromSearch(window.location.search);
@@ -371,10 +358,11 @@ function App() {
     await executeSummary(request);
   }
 
-  async function openSupportWindow(view: Exclude<SupportView, "main">) {
-    const config = getSupportWindowConfig(view);
+  async function openHelpWindow() {
+    const config = getSupportWindowConfig("help");
     const existing = await WebviewWindow.getByLabel(config.label);
     if (existing) {
+      await existing.show();
       await existing.unminimize();
       await existing.setFocus();
       return;
@@ -427,18 +415,14 @@ function App() {
             <p>批量读取 Excel 指定 Sheet 与单元格并汇总输出</p>
           </div>
           <div className="window-actions">
-            <button className="soft-button" onClick={() => void openSupportWindow("help")}>
+            <button className="soft-button" onClick={() => void openHelpWindow()}>
               <Info size={19} />
               帮助说明
-            </button>
-            <button className="soft-button" onClick={() => void openSupportWindow("about")}>
-              <FileSpreadsheet size={19} />
-              关于
             </button>
           </div>
         </header>
 
-        <section className="content-panel">
+        <section className="content-panel" key={activePage}>
           <div className="panel-heading">
             <div>
               <p className="eyebrow">当前页面</p>
@@ -633,6 +617,8 @@ function App() {
               <pre className="log-console">{logs.join("\n")}</pre>
             </div>
           )}
+
+          {activePage === "about" && <AboutPage />}
         </section>
       </main>
 

@@ -1,4 +1,4 @@
-export type SupportView = "main" | "help" | "about";
+export type SupportView = "main" | "help";
 
 export interface SupportWindowConfig {
   label: string;
@@ -6,9 +6,11 @@ export interface SupportWindowConfig {
   url: string;
   width: number;
   height: number;
+  visible: boolean;
   minimizable: boolean;
   resizable: boolean;
   center: boolean;
+  backgroundColor: string;
 }
 
 export function getSupportWindowConfig(view: Exclude<SupportView, "main">): SupportWindowConfig {
@@ -19,19 +21,11 @@ export function getSupportWindowConfig(view: Exclude<SupportView, "main">): Supp
       url: "/?view=help",
       width: 1120,
       height: 780,
+      visible: false,
       minimizable: true,
       resizable: true,
       center: true,
-    },
-    about: {
-      label: "about",
-      title: "关于",
-      url: "/?view=about",
-      width: 1120,
-      height: 720,
-      minimizable: true,
-      resizable: true,
-      center: true,
+      backgroundColor: "#0e1b2d",
     },
   };
   return configs[view];
@@ -39,7 +33,7 @@ export function getSupportWindowConfig(view: Exclude<SupportView, "main">): Supp
 
 export function getSupportViewFromSearch(search: string): SupportView {
   const view = new URLSearchParams(search).get("view");
-  if (view === "help" || view === "about") {
+  if (view === "help") {
     return view;
   }
   return "main";

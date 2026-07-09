@@ -4,8 +4,7 @@
   "description": "enables the default permissions",
   "windows": [
     "main",
-    "help-manual",
-    "about"
+    "help-manual"
   ],
   "permissions": [
     "core:default",
@@ -13,6 +12,7 @@
     "core:webview:allow-create-webview-window",
     "core:window:allow-create",
     "core:window:allow-set-focus",
-    "core:window:allow-unminimize"
+    "core:window:allow-unminimize",
+    "core:window:allow-show"
   ]
 }

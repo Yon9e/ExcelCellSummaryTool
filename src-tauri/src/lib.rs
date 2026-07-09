@@ -31,7 +31,6 @@ mod models;
 mod scheme_store;
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use models::{
     CurrentFileEvent, LogEvent, ProgressEvent, Scheme, SheetConflict, SummaryRequest, SummaryResult,
@@ -86,16 +85,35 @@ fn open_output_file(path: String) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {
-    Command::new("cmd")
-        .args(["/C", "start", "", &path.to_string_lossy()])
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("打开输出文件失败：{error}"))
+    use std::iter::once;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    let operation: Vec<u16> = "open".encode_utf16().chain(once(0)).collect();
+    let file: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+    let result = unsafe {
+        ShellExecuteW(
+            0 as HWND,
+            operation.as_ptr(),
+            file.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    } as isize;
+
+    if result <= 32 {
+        Err(format!("打开输出文件失败，ShellExecuteW 返回码：{result}"))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "macos")]
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {
-    Command::new("open")
+    std::process::Command::new("open")
         .arg(path)
         .spawn()
         .map(|_| ())
@@ -104,7 +122,7 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {
-    Command::new("xdg-open")
+    std::process::Command::new("xdg-open")
         .arg(path)
         .spawn()
         .map(|_| ())
