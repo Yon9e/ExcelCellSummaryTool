@@ -7,6 +7,7 @@ import {
   BookOpen,
   FileSpreadsheet,
   FolderOpen,
+  GripVertical,
   Info,
   Plus,
   Rocket,
@@ -29,6 +30,7 @@ import type {
 } from "./types";
 import { getBrandSubtitle } from "./brandContent";
 import { getRuleRowKey } from "./ruleKeys";
+import { reorderRules } from "./ruleOrdering";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
 import { SupportWindowContent } from "./SupportWindowContent";
 import { AboutPage } from "./AboutPage";
@@ -100,6 +102,8 @@ function App() {
   const [filterMode, setFilterMode] = useState<FilterMode>("include");
   const [rules, setRules] = useState<Rule[]>(sampleRules);
   const [selectedRuleIndex, setSelectedRuleIndex] = useState<number | null>(null);
+  const [draggedRuleIndex, setDraggedRuleIndex] = useState<number | null>(null);
+  const [dragOverRuleIndex, setDragOverRuleIndex] = useState<number | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [currentFile, setCurrentFile] = useState("-");
   const [processed, setProcessed] = useState(0);
@@ -244,6 +248,34 @@ function App() {
     }
     setRules((items) => items.filter((_, index) => index !== selectedRuleIndex));
     setSelectedRuleIndex(null);
+  }
+
+  function startRuleDrag(event: React.DragEvent<HTMLButtonElement>, index: number) {
+    setDraggedRuleIndex(index);
+    setDragOverRuleIndex(index);
+    setSelectedRuleIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  }
+
+  function dropRule(event: React.DragEvent<HTMLTableRowElement>, toIndex: number) {
+    event.preventDefault();
+    const transferIndex = Number(event.dataTransfer.getData("text/plain"));
+    const fromIndex = draggedRuleIndex ?? transferIndex;
+
+    if (Number.isInteger(fromIndex)) {
+      const result = reorderRules(rules, fromIndex, toIndex, selectedRuleIndex);
+      setRules(result.rules);
+      setSelectedRuleIndex(result.selectedIndex);
+    }
+
+    setDraggedRuleIndex(null);
+    setDragOverRuleIndex(null);
+  }
+
+  function endRuleDrag() {
+    setDraggedRuleIndex(null);
+    setDragOverRuleIndex(null);
   }
 
   async function runSummary() {
@@ -541,6 +573,13 @@ function App() {
               <table>
                 <thead>
                   <tr>
+                    <th
+                      className="drag-column"
+                      aria-label="拖动排序"
+                      title="拖动左侧手柄调整规则顺序"
+                    >
+                      <GripVertical size={18} />
+                    </th>
                     <th>输出列名</th>
                     <th>Sheet 模式</th>
                     <th>Sheet 值</th>
@@ -551,9 +590,39 @@ function App() {
                   {rules.map((rule, index) => (
                     <tr
                       key={getRuleRowKey(index)}
-                      className={selectedRuleIndex === index ? "selected-row" : ""}
+                      className={[
+                        selectedRuleIndex === index ? "selected-row" : "",
+                        dragOverRuleIndex === index && draggedRuleIndex !== index
+                          ? "drag-over-row"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
                       onClick={() => setSelectedRuleIndex(index)}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDragOverRuleIndex(index);
+                      }}
+                      onDrop={(event) => dropRule(event, index)}
                     >
+                      <td className="drag-cell">
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          draggable
+                          aria-label={`拖动第 ${index + 1} 条规则调整顺序`}
+                          title="拖动调整顺序"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedRuleIndex(index);
+                          }}
+                          onDragStart={(event) => startRuleDrag(event, index)}
+                          onDragEnd={endRuleDrag}
+                        >
+                          <GripVertical size={20} />
+                        </button>
+                      </td>
                       <td>
                         <input
                           value={rule.output_column}

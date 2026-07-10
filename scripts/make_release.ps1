@@ -69,6 +69,8 @@ $notes = @(
     "- Supports Chinese paths, filenames, and sheet names.",
     "- Supports exact / contains / index sheet matching.",
     "- Supports schemes, rule editing, progress events, and logs.",
+    "- Supports drag-and-drop rule ordering from the rule table handle.",
+    "- Audits release packages for credentials, private paths, and unexpected portable files.",
     "",
     "## Download",
     "Recommended setup package:",

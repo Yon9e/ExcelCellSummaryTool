@@ -1,10 +1,11 @@
 @echo off
 setlocal
 chcp 65001 > nul
-cd /d "D:\DevHub\repos\desktop-apps\ExcelCellSummaryTool"
+cd /d "%~dp0"
 if errorlevel 1 goto fail
 
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+set "RUSTFLAGS=--remap-path-prefix=%CD%=. --remap-path-prefix=%USERPROFILE%=~ %RUSTFLAGS%"
 
 if exist dist rmdir /s /q dist
 if exist release rmdir /s /q release
@@ -27,6 +28,9 @@ call npm run tauri:build
 if errorlevel 1 goto fail
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.1.0
+if errorlevel 1 goto fail
+
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\audit_release.ps1 -Version 0.1.0
 if errorlevel 1 goto fail
 
 echo Tauri build completed.
