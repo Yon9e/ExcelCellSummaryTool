@@ -143,7 +143,7 @@ export function OcrPage({ onLog }: OcrPageProps) {
         <div className="ocr-intro">
           <span className="ocr-kicker"><Sparkles size={16} /> 本地 OCR</span>
           <h4>截图后直接粘贴文字</h4>
-          <p>识别在本机完成，截图结果由 Umi-OCR 自动写入剪贴板。</p>
+          <p>应用启动时自动加载 Umi-OCR；按 Alt+S 截图，识别结果自动写入剪贴板。</p>
         </div>
         <div className="ocr-command-actions">
           <button className="primary-button" disabled={busy || !status?.bundled} onClick={captureAndCopy}>

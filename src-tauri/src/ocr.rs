@@ -91,6 +91,35 @@ pub fn runtime_status(app: &AppHandle) -> OcrRuntimeStatus {
 }
 
 pub fn prepare_runtime(app: &AppHandle) -> Result<PathBuf, String> {
+    prepare_runtime_with_state(app).map(|(path, _)| path)
+}
+
+pub fn initialize_runtime(app: &AppHandle) -> Result<OcrRuntimeStatus, String> {
+    let _guard = ocr_lock()
+        .lock()
+        .map_err(|_| "OCR 任务锁已损坏，请重启应用。".to_string())?;
+    let (runtime, settings_changed) = prepare_runtime_with_state(app)?;
+
+    if settings_changed && !another_app_instance_is_running() {
+        if let Some(listener_pid) = private_listener_pid(&runtime)? {
+            kill_private_process_tree(&runtime, listener_pid);
+            for _ in 0..40 {
+                if netstat_listener_pid(UMI_PORT)?.is_none() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+            if netstat_listener_pid(UMI_PORT)?.is_some() {
+                return Err("旧版 Umi-OCR 服务未能停止，请重启应用后再试。".to_string());
+            }
+        }
+    }
+
+    ensure_service(&runtime)?;
+    Ok(runtime_status(app))
+}
+
+fn prepare_runtime_with_state(app: &AppHandle) -> Result<(PathBuf, bool), String> {
     let source = find_runtime_source(app)?;
     let destination = runtime_destination(app)?;
     let marker = destination.join(".financial-tool-runtime-version");
@@ -100,20 +129,20 @@ pub fn prepare_runtime(app: &AppHandle) -> Result<PathBuf, String> {
         .to_string();
 
     if destination.join(UMI_EXE).is_file() && installed_version == UMI_VERSION {
-        ensure_runtime_settings(&destination)?;
-        return Ok(destination);
+        let settings_changed = ensure_runtime_settings(&destination)?;
+        return Ok((destination, settings_changed));
     }
 
     fs::create_dir_all(&destination).map_err(|error| format!("无法创建 OCR 运行目录：{error}"))?;
     copy_runtime_tree(&source, &destination, &source)?;
     fs::write(&marker, format!("{UMI_VERSION}\n"))
         .map_err(|error| format!("无法写入 OCR 版本标记：{error}"))?;
-    ensure_runtime_settings(&destination)?;
+    let settings_changed = ensure_runtime_settings(&destination)?;
 
     if !destination.join(UMI_EXE).is_file() {
         return Err("OCR 运行时复制不完整，缺少 Umi-OCR.exe。".to_string());
     }
-    Ok(destination)
+    Ok((destination, settings_changed))
 }
 
 pub fn read_image(path: &str) -> Result<ImagePayload, String> {
@@ -131,6 +160,70 @@ pub fn read_image(path: &str) -> Result<ImagePayload, String> {
         data_url: format!("data:{mime};base64,{}", STANDARD.encode(bytes)),
         size_bytes: metadata.len(),
     })
+}
+
+#[cfg(target_os = "windows")]
+pub fn read_clipboard_image() -> Result<Option<ImagePayload>, String> {
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|error| format!("无法访问系统剪贴板：{error}"))?;
+    let image = match clipboard.get_image() {
+        Ok(image) => image,
+        Err(arboard::Error::ContentNotAvailable) => return Ok(None),
+        Err(error) => return Err(format!("读取剪贴板图片失败：{error}")),
+    };
+
+    let pixels = image
+        .width
+        .checked_mul(image.height)
+        .ok_or_else(|| "剪贴板图片像素尺寸异常。".to_string())?;
+    if image.width == 0 || image.height == 0 || pixels > MAX_IMAGE_PIXELS {
+        return Err("剪贴板图片尺寸异常或超过 1600 万像素，请裁剪后重试。".to_string());
+    }
+    let expected_bytes = pixels
+        .checked_mul(4)
+        .ok_or_else(|| "剪贴板图片数据长度异常。".to_string())?;
+    if image.bytes.len() != expected_bytes {
+        return Err("剪贴板图片不是有效的 RGBA 数据。".to_string());
+    }
+
+    let width = u32::try_from(image.width).map_err(|_| "剪贴板图片宽度超出范围。")?;
+    let height = u32::try_from(image.height).map_err(|_| "剪贴板图片高度超出范围。")?;
+    let mut png_bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut png_bytes, width, height);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .map_err(|error| format!("编码剪贴板图片失败：{error}"))?;
+        writer
+            .write_image_data(image.bytes.as_ref())
+            .map_err(|error| format!("写入剪贴板图片失败：{error}"))?;
+    }
+    validate_image_bytes(&png_bytes)?;
+
+    Ok(Some(ImagePayload {
+        path: String::new(),
+        size_bytes: png_bytes.len() as u64,
+        data_url: format!("data:image/png;base64,{}", STANDARD.encode(png_bytes)),
+    }))
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn read_clipboard_image() -> Result<Option<ImagePayload>, String> {
+    Err("当前平台暂不支持从剪贴板读取图片。".to_string())
+}
+
+#[cfg(target_os = "windows")]
+pub fn clipboard_sequence_number() -> u32 {
+    use windows_sys::Win32::System::DataExchange::GetClipboardSequenceNumber;
+
+    unsafe { GetClipboardSequenceNumber() }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn clipboard_sequence_number() -> u32 {
+    0
 }
 
 pub fn recognize_image(app: &AppHandle, image_base64: &str) -> Result<OcrImageResult, String> {
@@ -297,14 +390,63 @@ fn copy_runtime_tree(source: &Path, destination: &Path, source_root: &Path) -> R
     Ok(())
 }
 
-fn ensure_runtime_settings(runtime: &Path) -> Result<(), String> {
+fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
     let data_dir = runtime.join("UmiOCR-data");
     fs::create_dir_all(&data_dir).map_err(|error| format!("创建 OCR 数据目录失败：{error}"))?;
     let settings = data_dir.join(".settings");
-    if !settings.exists() {
-        let content = format!(
-            "[Global]\nconfigs_advanced=true\nui.theme=Default Dark\nui.fontFamily=Microsoft YaHei UI\nwindow.startupInvisible=true\nwindow.closeWin2Hide=true\nwindow.hideTrayIcon=true\nscreenshot.hideWindow=true\nserver.enable=true\nserver.host=127.0.0.1\nserver.port={UMI_PORT}\nlogs.saveLogLevel=ERROR\nocr.api=win7_x64_RapidOCR-json\n"
-        );
+    let original = match fs::read_to_string(&settings) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(format!("读取 OCR 设置失败：{error}")),
+    };
+    let mut content = upsert_ini_section_values(
+        &original,
+        "Global",
+        &[
+            ("configs_advanced", "true"),
+            ("ui.theme", "Default Dark"),
+            ("ui.fontFamily", "Microsoft YaHei UI"),
+            ("window.startupInvisible", "true"),
+            ("window.closeWin2Hide", "true"),
+            ("window.hideTrayIcon", "true"),
+            ("screenshot.hideWindow", "true"),
+            ("server.enable", "true"),
+            ("server.host", "127.0.0.1"),
+            ("server.port", "12240"),
+            ("logs.saveLogLevel", "ERROR"),
+            ("ocr.api", "win7_x64_RapidOCR-json"),
+        ],
+    );
+    content = upsert_ini_section_values(
+        &content,
+        "ScreenshotOCR",
+        &[
+            ("configs_advanced", "false"),
+            ("ocr.angle", "false"),
+            ("ocr.language", r"\x7b80\x4f53\x4e2d\x6587"),
+            ("ocr.maxSideLen", "1024"),
+            ("tbpu.parser", "multi_none"),
+            ("hotkey.screenshot", "alt+s"),
+            ("hotkey.paste", "win+alt+v"),
+            ("hotkey.reScreenshot", ""),
+            ("action.copy", "true"),
+            ("action.popMainWindow", "false"),
+            ("other.simpleNotificationType", "default"),
+        ],
+    );
+    content = upsert_ini_section_values(
+        &content,
+        "TabPageManager",
+        &[
+            ("showPageIndex", "0"),
+            (
+                "openPageList",
+                "ScreenshotOCR/ScreenshotOCR.qml, GlobalConfigsPage/GlobalConfigsPage.qml",
+            ),
+        ],
+    );
+    let mut changed = content != original;
+    if changed {
         fs::write(&settings, content).map_err(|error| format!("写入 OCR 设置失败：{error}"))?;
     }
     let pre_settings = data_dir.join(".pre_settings");
@@ -318,8 +460,55 @@ fn ensure_runtime_settings(runtime: &Path) -> Result<(), String> {
         });
         fs::write(&pre_settings, content.to_string())
             .map_err(|error| format!("写入 OCR 启动设置失败：{error}"))?;
+        changed = true;
     }
-    Ok(())
+    Ok(changed)
+}
+
+fn upsert_ini_section_values(content: &str, section: &str, values: &[(&str, &str)]) -> String {
+    let normalized = content.replace("\r\n", "\n");
+    let mut lines: Vec<String> = normalized.lines().map(str::to_string).collect();
+    let header = format!("[{section}]");
+    let section_start = lines.iter().position(|line| line.trim() == header);
+
+    let start = if let Some(index) = section_start {
+        index
+    } else {
+        if lines.last().is_some_and(|line| !line.trim().is_empty()) {
+            lines.push(String::new());
+        }
+        lines.push(header);
+        lines.len() - 1
+    };
+    let mut end = lines
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .find_map(|(index, line)| {
+            let trimmed = line.trim();
+            (trimmed.starts_with('[') && trimmed.ends_with(']')).then_some(index)
+        })
+        .unwrap_or(lines.len());
+
+    for (key, value) in values {
+        let existing = (start + 1..end).find(|index| {
+            lines[*index]
+                .split_once('=')
+                .map(|(existing_key, _)| existing_key.trim() == *key)
+                .unwrap_or(false)
+        });
+        let setting = format!("{key}={value}");
+        if let Some(index) = existing {
+            lines[index] = setting;
+        } else {
+            lines.insert(end, setting);
+            end += 1;
+        }
+    }
+
+    let mut output = lines.join("\n");
+    output.push('\n');
+    output
 }
 
 fn ensure_service(runtime: &Path) -> Result<(), String> {
@@ -661,5 +850,59 @@ mod tests {
         png[20..24].copy_from_slice(&4_000_u32.to_be_bytes());
         assert!(validate_image_bytes(&png).is_err());
         assert!(validate_image_bytes(b"not an image").is_err());
+    }
+
+    #[test]
+    fn upserts_settings_without_losing_other_sections() {
+        let original = "[Global]\nserver.port=9999\ncustom.keep=true\n\n[Other]\nvalue=1\n";
+        let updated = upsert_ini_section_values(
+            original,
+            "Global",
+            &[
+                ("server.port", "12240"),
+                ("window.startupInvisible", "true"),
+            ],
+        );
+        let updated = upsert_ini_section_values(
+            &updated,
+            "ScreenshotOCR",
+            &[("hotkey.screenshot", "alt+s"), ("action.copy", "true")],
+        );
+
+        assert!(updated.contains("server.port=12240"));
+        assert!(updated.contains("custom.keep=true"));
+        assert!(updated.contains("[Other]\nvalue=1"));
+        assert!(updated.contains("[ScreenshotOCR]"));
+        assert!(updated.contains("hotkey.screenshot=alt+s"));
+        assert!(updated.contains("action.copy=true"));
+    }
+
+    #[test]
+    fn writes_requested_screenshot_ocr_profile() {
+        let runtime = std::env::temp_dir().join(format!(
+            "financial-tool-ocr-settings-{}",
+            std::process::id()
+        ));
+        let data_dir = runtime.join("UmiOCR-data");
+        fs::create_dir_all(&data_dir).unwrap();
+        fs::write(data_dir.join(".settings"), "[Global]\ncustom.keep=true\n").unwrap();
+
+        assert!(ensure_runtime_settings(&runtime).unwrap());
+        let settings = fs::read_to_string(data_dir.join(".settings")).unwrap();
+
+        assert!(settings.contains("custom.keep=true"));
+        assert!(settings.contains("ocr.angle=false"));
+        assert!(settings.contains(r"ocr.language=\x7b80\x4f53\x4e2d\x6587"));
+        assert!(settings.contains("ocr.maxSideLen=1024"));
+        assert!(settings.contains("tbpu.parser=multi_none"));
+        assert!(settings.contains("hotkey.screenshot=alt+s"));
+        assert!(settings.contains("hotkey.paste=win+alt+v"));
+        assert!(settings.contains("action.copy=true"));
+        assert!(settings.contains("action.popMainWindow=false"));
+        assert!(settings.contains(
+            "openPageList=ScreenshotOCR/ScreenshotOCR.qml, GlobalConfigsPage/GlobalConfigsPage.qml"
+        ));
+
+        fs::remove_dir_all(runtime).unwrap();
     }
 }

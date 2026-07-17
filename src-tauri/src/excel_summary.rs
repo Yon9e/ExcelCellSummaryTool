@@ -87,7 +87,13 @@ where
     })?;
     log(LogEvent {
         level: "DONE".to_string(),
-        message: format!("汇总完成，输出文件：{}", output_path.display()),
+        message: format!(
+            "汇总完成，输出文件：{}",
+            output_path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("汇总结果.xlsx")
+        ),
     });
 
     Ok(SummaryResult {

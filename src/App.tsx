@@ -5,6 +5,8 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm, message, open, save } from "@tauri-apps/plugin-dialog";
 import {
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
   FileSpreadsheet,
   FolderOpen,
   GripVertical,
@@ -13,12 +15,14 @@ import {
   Rocket,
   Save,
   ScanSearch,
+  Search,
   Trash2,
 } from "lucide-react";
 import type {
   CurrentFileEvent,
   FilterMode,
   LogEvent,
+  OcrRuntimeStatus,
   PageKey,
   ProgressEvent,
   Rule,
@@ -30,8 +34,10 @@ import type {
   SummaryResult,
 } from "./types";
 import { getBrandSubtitle } from "./brandContent";
+import { getFileDisplayName } from "./fileDisplay";
 import { getRuleRowKey } from "./ruleKeys";
 import { reorderRules } from "./ruleOrdering";
+import { getSchemePage } from "./schemePaging";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
 import { SupportWindowContent } from "./SupportWindowContent";
 import { AboutPage } from "./AboutPage";
@@ -89,6 +95,14 @@ function buildSheetChoices(
 
 const brandSubtitle = getBrandSubtitle();
 const supportView = getSupportViewFromSearch(window.location.search);
+let ocrStartupPromise: Promise<OcrRuntimeStatus> | null = null;
+
+function initializeOcrAtStartup(): Promise<OcrRuntimeStatus> {
+  if (!ocrStartupPromise) {
+    ocrStartupPromise = invoke<OcrRuntimeStatus>("prepare_ocr_runtime");
+  }
+  return ocrStartupPromise;
+}
 
 function App() {
   if (supportView !== "main") {
@@ -116,6 +130,8 @@ function App() {
   const [selectedSheets, setSelectedSheets] = useState<Record<string, string>>({});
   const [pendingRequest, setPendingRequest] = useState<SummaryRequest | null>(null);
   const [showRuleImageImporter, setShowRuleImageImporter] = useState(false);
+  const [schemeQuery, setSchemeQuery] = useState("");
+  const [schemePage, setSchemePage] = useState(1);
 
   const activeTitle = pages.find((page) => page.key === activePage)?.label ?? "";
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
@@ -123,9 +139,19 @@ function App() {
     () => schemes.find((scheme) => scheme.name === selectedScheme),
     [schemes, selectedScheme],
   );
+  const schemePageData = useMemo(
+    () => getSchemePage(schemes, schemeQuery, schemePage),
+    [schemes, schemeQuery, schemePage],
+  );
 
   useEffect(() => {
+    let active = true;
     void refreshSchemes();
+    void initializeOcrAtStartup().catch((error) => {
+      if (active) {
+        appendLog("WARN", `Umi-OCR 自动加载失败：${String(error)}`);
+      }
+    });
     const unlisteners = [
       listen<LogEvent>("summary-log", (event) => {
         appendLog(event.payload.level, event.payload.message);
@@ -139,11 +165,18 @@ function App() {
       }),
     ];
     return () => {
+      active = false;
       unlisteners.forEach((promise) => {
         void promise.then((unlisten) => unlisten());
       });
     };
   }, []);
+
+  useEffect(() => {
+    if (schemePage !== schemePageData.currentPage) {
+      setSchemePage(schemePageData.currentPage);
+    }
+  }, [schemePage, schemePageData.currentPage]);
 
   async function refreshSchemes() {
     try {
@@ -176,6 +209,8 @@ function App() {
       appendLog("DONE", `方案已保存：${schemeName}`);
       await refreshSchemes();
       setSelectedScheme(schemeName);
+      setSchemeQuery("");
+      setSchemePage(1);
     } catch (error) {
       await message(String(error), { title: "保存方案失败", kind: "error" });
     }
@@ -185,13 +220,18 @@ function App() {
     if (!selectedSchemeData) {
       return;
     }
-    setSchemeName(selectedSchemeData.name);
-    setTargetFolder(selectedSchemeData.target_folder);
-    setOutputFile(selectedSchemeData.output_file);
-    setKeyword(selectedSchemeData.keyword);
-    setFilterMode(selectedSchemeData.filter_mode);
-    setRules(selectedSchemeData.rules.length ? selectedSchemeData.rules : [emptyRule]);
-    appendLog("INFO", `已载入方案：${selectedSchemeData.name}`);
+    applyScheme(selectedSchemeData);
+  }
+
+  function applyScheme(scheme: Scheme) {
+    setSelectedScheme(scheme.name);
+    setSchemeName(scheme.name);
+    setTargetFolder(scheme.target_folder);
+    setOutputFile(scheme.output_file);
+    setKeyword(scheme.keyword);
+    setFilterMode(scheme.filter_mode);
+    setRules(scheme.rules.length ? scheme.rules : [emptyRule]);
+    appendLog("INFO", `已载入方案：${scheme.name}`);
   }
 
   async function deleteSelectedScheme() {
@@ -230,6 +270,25 @@ function App() {
     });
     if (typeof selected === "string") {
       setOutputFile(selected);
+    }
+  }
+
+  async function openConfiguredOutputFile() {
+    if (!outputFile) {
+      return;
+    }
+    try {
+      const exists = await invoke<boolean>("path_exists", { path: outputFile });
+      if (!exists) {
+        await message("文件尚未生成，汇总完成后即可点击打开。", {
+          title: "输出文件不存在",
+          kind: "info",
+        });
+        return;
+      }
+      await invoke("open_output_file", { path: outputFile });
+    } catch (error) {
+      await message(String(error), { title: "打开输出文件失败", kind: "error" });
     }
   }
 
@@ -363,7 +422,7 @@ function App() {
       const result = await invoke<SummaryResult>("run_summary", { request });
       appendLog(
         "DONE",
-        `处理完成：${result.processed_files}/${result.total_files}，输出 ${result.output_path}`,
+        `处理完成：${result.processed_files}/${result.total_files}，输出 ${getFileDisplayName(result.output_path)}`,
       );
       const shouldOpen = await confirm(getSummaryCompletionPrompt(), {
         title: "执行完成",
@@ -494,43 +553,117 @@ function App() {
           </div>
 
           {activePage === "scheme" && (
-            <div className="form-grid">
-              <label>
-                <span>方案名称</span>
-                <input
-                  value={schemeName}
-                  onChange={(event) => setSchemeName(event.target.value)}
-                  placeholder="方案名称"
-                />
-              </label>
-              <label>
-                <span>已保存方案</span>
-                <select
-                  value={selectedScheme}
-                  onChange={(event) => setSelectedScheme(event.target.value)}
-                >
-                  <option value="">选择已保存方案</option>
-                  {schemes.map((scheme) => (
-                    <option key={scheme.name} value={scheme.name}>
-                      {scheme.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="button-row">
-                <button className="soft-button" onClick={saveCurrentScheme}>
-                  <Save size={18} />
-                  保存方案
-                </button>
-                <button className="soft-button" onClick={loadSelectedScheme}>
-                  <FolderOpen size={18} />
-                  载入方案
-                </button>
-                <button className="danger-button" onClick={deleteSelectedScheme}>
-                  <Trash2 size={18} />
-                  删除方案
-                </button>
+            <div className="scheme-page">
+              <div className="scheme-editor">
+                <label>
+                  <span>方案名称</span>
+                  <input
+                    value={schemeName}
+                    onChange={(event) => setSchemeName(event.target.value)}
+                    placeholder="方案名称"
+                  />
+                </label>
+                <div className="button-row">
+                  <button className="soft-button" onClick={saveCurrentScheme}>
+                    <Save size={18} />
+                    保存方案
+                  </button>
+                  <button
+                    className="soft-button"
+                    disabled={!selectedSchemeData}
+                    onClick={loadSelectedScheme}
+                  >
+                    <FolderOpen size={18} />
+                    载入方案
+                  </button>
+                  <button
+                    className="danger-button"
+                    disabled={!selectedSchemeData}
+                    onClick={deleteSelectedScheme}
+                  >
+                    <Trash2 size={18} />
+                    删除方案
+                  </button>
+                </div>
               </div>
+
+              <section className="scheme-library" aria-labelledby="saved-schemes-title">
+                <div className="scheme-library-heading">
+                  <div>
+                    <h4 id="saved-schemes-title">已保存方案</h4>
+                    <span>共 {schemePageData.totalItems} 个方案</span>
+                  </div>
+                  <label className="scheme-search">
+                    <Search size={18} />
+                    <input
+                      value={schemeQuery}
+                      onChange={(event) => {
+                        setSchemeQuery(event.target.value);
+                        setSchemePage(1);
+                      }}
+                      placeholder="搜索方案名称"
+                      aria-label="搜索已保存方案"
+                    />
+                  </label>
+                </div>
+
+                <div className="scheme-list" role="listbox" aria-label="已保存方案">
+                  {schemePageData.items.length ? (
+                    schemePageData.items.map((scheme) => (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selectedScheme === scheme.name}
+                        className={
+                          selectedScheme === scheme.name
+                            ? "scheme-list-item selected"
+                            : "scheme-list-item"
+                        }
+                        key={scheme.name}
+                        onClick={() => setSelectedScheme(scheme.name)}
+                        onDoubleClick={() => applyScheme(scheme)}
+                      >
+                        <FileSpreadsheet size={20} />
+                        <span className="scheme-list-name">{scheme.name}</span>
+                        <span className="scheme-list-meta">{scheme.rules.length} 条规则</span>
+                        <span className="scheme-list-filter">
+                          {scheme.keyword ? `关键词：${scheme.keyword}` : "全部 Excel 文件"}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="scheme-empty">没有匹配的已保存方案</div>
+                  )}
+                </div>
+
+                <div className="scheme-pagination">
+                  <span>
+                    第 {schemePageData.currentPage} / {schemePageData.totalPages} 页
+                  </span>
+                  <div>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      disabled={schemePageData.currentPage <= 1}
+                      onClick={() => setSchemePage((page) => Math.max(1, page - 1))}
+                      title="上一页"
+                    >
+                      <ChevronLeft size={19} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      disabled={schemePageData.currentPage >= schemePageData.totalPages}
+                      onClick={() =>
+                        setSchemePage((page) => Math.min(schemePageData.totalPages, page + 1))
+                      }
+                      title="下一页"
+                    >
+                      <ChevronRight size={19} />
+                    </button>
+                  </div>
+                </div>
+              </section>
             </div>
           )}
 
@@ -552,11 +685,21 @@ function App() {
               <label className="wide-field">
                 <span>输出文件</span>
                 <div className="input-action">
-                  <input
-                    value={outputFile}
-                    onChange={(event) => setOutputFile(event.target.value)}
-                    placeholder="选择汇总结果输出路径，建议 .xlsx"
-                  />
+                  <div className="output-file-field">
+                    {outputFile ? (
+                      <button
+                        type="button"
+                        className="output-file-link"
+                        onClick={() => void openConfiguredOutputFile()}
+                        title="打开输出文件"
+                      >
+                        <FileSpreadsheet size={19} />
+                        <span>{getFileDisplayName(outputFile)}</span>
+                      </button>
+                    ) : (
+                      <span className="output-file-placeholder">尚未选择输出文件</span>
+                    )}
+                  </div>
                   <button className="soft-button" onClick={browseOutputFile}>
                     浏览
                   </button>

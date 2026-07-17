@@ -20,6 +20,8 @@ pub fn run() {
             get_ocr_runtime_status,
             prepare_ocr_runtime,
             read_image_file,
+            read_clipboard_image,
+            get_clipboard_sequence_number,
             ocr_image_base64,
             start_screenshot_ocr,
             show_ocr_settings,
@@ -76,12 +78,21 @@ fn get_ocr_runtime_status(app: tauri::AppHandle) -> ocr::OcrRuntimeStatus {
 
 #[tauri::command]
 async fn prepare_ocr_runtime(app: tauri::AppHandle) -> Result<ocr::OcrRuntimeStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        ocr::prepare_runtime(&app)?;
-        Ok(ocr::runtime_status(&app))
-    })
-    .await
-    .map_err(|error| format!("OCR 初始化任务失败：{error}"))?
+    tauri::async_runtime::spawn_blocking(move || ocr::initialize_runtime(&app))
+        .await
+        .map_err(|error| format!("OCR 初始化任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn read_clipboard_image() -> Result<Option<ocr::ImagePayload>, String> {
+    tauri::async_runtime::spawn_blocking(ocr::read_clipboard_image)
+        .await
+        .map_err(|error| format!("剪贴板读取任务失败：{error}"))?
+}
+
+#[tauri::command]
+fn get_clipboard_sequence_number() -> u32 {
+    ocr::clipboard_sequence_number()
 }
 
 #[tauri::command]

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { AlertTriangle, FileImage, ScanSearch, X } from "lucide-react";
+import { AlertTriangle, ClipboardPaste, FileImage, ScanSearch, X } from "lucide-react";
 import {
   detectAnnotationRectangles,
   locateRuleCandidates,
@@ -29,28 +29,25 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   const [sheetMode, setSheetMode] = useState<SheetMode>("contains");
   const [sheetValue, setSheetValue] = useState("");
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("请选择已用红框标注表头、蓝框标注数据单元格的 Excel 截图。");
+  const [status, setStatus] = useState("正在监听剪贴板，也可选择本地标注截图。");
   const [error, setError] = useState("");
+  const busyRef = useRef(false);
+  const selectingFileRef = useRef(false);
+  const readingClipboardRef = useRef(false);
+  const lastClipboardSequence = useRef<number | null>(null);
 
-  async function selectAndAnalyze() {
-    const selected = await open({
-      multiple: false,
-      title: "选择红蓝框标注的 Excel 截图",
-      filters: [
-        { name: "图片", extensions: ["png", "jpg", "jpeg", "bmp", "webp", "tif", "tiff"] },
-      ],
-    });
-    if (typeof selected !== "string") {
+  const analyzePayload = useCallback(async (payload: ImagePayload, source: string) => {
+    if (busyRef.current) {
       return;
     }
-
+    busyRef.current = true;
     setBusy(true);
     setError("");
     setCandidates([]);
-    setStatus("正在识别标注框、表头和 Excel 坐标...");
+    setImage(payload);
+    setPreviewUrl(payload.data_url);
+    setStatus(`正在识别${source}中的标注框、表头和 Excel 坐标...`);
     try {
-      const payload = await invoke<ImagePayload>("read_image_file", { path: selected });
-      setImage(payload);
       const ocrResult = await invoke<OcrImageResult>("ocr_image_base64", {
         imageBase64: payload.data_url,
       });
@@ -67,9 +64,112 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       }
     } catch (reason) {
       setError(String(reason));
-      setStatus("图片分析失败。");
+      setStatus("图片分析失败，仍在监听剪贴板。");
     } finally {
+      busyRef.current = false;
       setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let stopped = false;
+
+    async function inspectClipboard(initial = false) {
+      if (
+        busyRef.current
+        || selectingFileRef.current
+        || readingClipboardRef.current
+        || stopped
+      ) {
+        return;
+      }
+      readingClipboardRef.current = true;
+      try {
+        const sequence = await invoke<number>("get_clipboard_sequence_number");
+        if (!initial && sequence === lastClipboardSequence.current) {
+          return;
+        }
+        const payload = await invoke<ImagePayload | null>("read_clipboard_image");
+        lastClipboardSequence.current = sequence;
+        if (!stopped && payload) {
+          await analyzePayload(payload, "剪贴板截图");
+        }
+      } catch {
+        if (initial && !stopped) {
+          setStatus("剪贴板暂时不可用；仍可选择本地标注截图。");
+        }
+      } finally {
+        readingClipboardRef.current = false;
+      }
+    }
+
+    void inspectClipboard(true);
+    const timer = window.setInterval(() => void inspectClipboard(), 700);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [analyzePayload]);
+
+  async function selectAndAnalyze() {
+    let selected: Awaited<ReturnType<typeof open>> = null;
+    selectingFileRef.current = true;
+    try {
+      selected = await open({
+        multiple: false,
+        title: "选择红蓝框标注的 Excel 截图",
+        filters: [
+          { name: "图片", extensions: ["png", "jpg", "jpeg", "bmp", "webp", "tif", "tiff"] },
+        ],
+      });
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      selectingFileRef.current = false;
+    }
+    if (typeof selected !== "string") {
+      return;
+    }
+
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const payload = await invoke<ImagePayload>("read_image_file", { path: selected });
+      busyRef.current = false;
+      setBusy(false);
+      await analyzePayload(payload, "所选图片");
+    } catch (reason) {
+      setError(String(reason));
+      setStatus("图片读取失败，仍在监听剪贴板。");
+    } finally {
+      if (busyRef.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  }
+
+  async function readClipboardAndAnalyze() {
+    setError("");
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const payload = await invoke<ImagePayload | null>("read_clipboard_image");
+      if (!payload) {
+        setError("剪贴板中没有图片，请先复制或截取带红蓝框的 Excel 图片。");
+        return;
+      }
+      lastClipboardSequence.current = await invoke<number>("get_clipboard_sequence_number");
+      busyRef.current = false;
+      setBusy(false);
+      await analyzePayload(payload, "剪贴板截图");
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      if (busyRef.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
@@ -126,10 +226,16 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
         </header>
 
         <div className="rule-import-controls">
-          <button className="soft-button" disabled={busy} onClick={selectAndAnalyze}>
-            <FileImage size={19} />
-            {image ? "重新选择图片" : "选择标注截图"}
-          </button>
+          <div className="rule-import-source-actions">
+            <button className="soft-button" disabled={busy} onClick={selectAndAnalyze}>
+              <FileImage size={19} />
+              选择图片文件
+            </button>
+            <button className="soft-button" disabled={busy} onClick={readClipboardAndAnalyze}>
+              <ClipboardPaste size={19} />
+              读取剪贴板
+            </button>
+          </div>
           <label>
             <span>Sheet 模式</span>
             <select value={sheetMode} onChange={(event) => setSheetMode(event.target.value as SheetMode)}>
