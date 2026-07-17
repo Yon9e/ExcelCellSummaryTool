@@ -6,14 +6,22 @@ cd /d "%PROJECT_ROOT%"
 if errorlevel 1 goto fail
 
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+set "RUSTFLAGS=--remap-path-prefix=%CD%=. --remap-path-prefix=%USERPROFILE%=~ %RUSTFLAGS%"
+set "WINDOWS_POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\setup_umi_ocr.ps1 -Force
+if errorlevel 1 goto fail
 
 call npm run tauri:build
 if errorlevel 1 goto fail
 
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.1.0
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.2.0
 if errorlevel 1 goto fail
 
-echo Tauri NSIS installer build completed: release\ExcelCellSummaryTool-v0.1.0-win64-setup.exe
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\audit_release.ps1 -Version 0.2.0
+if errorlevel 1 goto fail
+
+echo Tauri NSIS installer build completed: release\ExcelCellSummaryTool-v0.2.0-win64-setup.exe
 exit /b 0
 
 :fail

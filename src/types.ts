@@ -1,6 +1,6 @@
 export type SheetMode = "exact" | "contains" | "index";
 export type FilterMode = "include" | "exclude";
-export type PageKey = "scheme" | "source" | "rules" | "run" | "about";
+export type PageKey = "scheme" | "source" | "rules" | "ocr" | "run" | "about";
 
 export interface Rule {
   output_column: string;
@@ -60,4 +60,30 @@ export interface SheetConflict {
   output_column: string;
   sheet_value: string;
   matched_sheets: string[];
+}
+
+export interface OcrRuntimeStatus {
+  version: string;
+  bundled: boolean;
+  prepared: boolean;
+  message: string;
+}
+
+export interface ImagePayload {
+  path: string;
+  data_url: string;
+  size_bytes: number;
+}
+
+export interface OcrTextItem {
+  text: string;
+  score: number;
+  box_points: Array<[number, number]>;
+  end: string;
+}
+
+export interface OcrImageResult {
+  text: string;
+  items: OcrTextItem[];
+  elapsed_seconds: number;
 }

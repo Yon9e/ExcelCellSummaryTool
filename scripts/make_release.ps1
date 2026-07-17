@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "0.1.0"
+﻿param(
+    [string]$Version = "0.2.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -7,11 +7,15 @@ $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ReleaseDir = Join-Path $ProjectRoot "release"
 $PortableStage = Join-Path $ReleaseDir "portable\ExcelCellSummaryTool"
 $PortableExe = Join-Path $ProjectRoot "src-tauri\target\release\excel-cell-summary-tool.exe"
-$SetupSource = Join-Path $ProjectRoot "src-tauri\target\release\bundle\nsis\ExcelCellSummaryTool_$($Version)_x64-setup.exe"
+$SetupSource = Join-Path $ProjectRoot "src-tauri\target\release\bundle\nsis\Financial Tool_$($Version)_x64-setup.exe"
 $PortableZip = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.zip"
 $SetupTarget = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-setup.exe"
 $NotesPath = Join-Path $ReleaseDir "RELEASE_NOTES.md"
 $HashPath = Join-Path $ReleaseDir "SHA256SUMS.txt"
+$OcrRuntimeSource = Join-Path $ProjectRoot "third_party\umi-ocr\runtime"
+$LicenseSource = Join-Path $ProjectRoot "LICENSE"
+$ThirdPartyNoticeSource = Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md"
+$ThirdPartyLicensesSource = Join-Path $ProjectRoot "THIRD_PARTY_LICENSES"
 
 function Get-Sha256Hex {
     param(
@@ -38,6 +42,27 @@ if (-not (Test-Path -LiteralPath $PortableExe)) {
 if (-not (Test-Path -LiteralPath $SetupSource)) {
     throw "Tauri NSIS setup not found: $SetupSource"
 }
+if (-not (Test-Path -LiteralPath (Join-Path $OcrRuntimeSource "Umi-OCR.exe"))) {
+    throw "Umi-OCR runtime not found. Run scripts\setup_umi_ocr.ps1 first."
+}
+foreach ($RequiredDocument in @($LicenseSource, $ThirdPartyNoticeSource)) {
+    if (-not (Test-Path -LiteralPath $RequiredDocument -PathType Leaf)) {
+        throw "Release document not found: $RequiredDocument"
+    }
+}
+if (-not (Test-Path -LiteralPath $ThirdPartyLicensesSource -PathType Container)) {
+    throw "Third-party license directory not found: $ThirdPartyLicensesSource"
+}
+$ForbiddenRuntimeState = @(
+    (Join-Path $OcrRuntimeSource "UmiOCR-data\.settings"),
+    (Join-Path $OcrRuntimeSource "UmiOCR-data\.pre_settings"),
+    (Join-Path $OcrRuntimeSource "UmiOCR-data\logs")
+)
+foreach ($ForbiddenPath in $ForbiddenRuntimeState) {
+    if (Test-Path -LiteralPath $ForbiddenPath) {
+        throw "Umi-OCR runtime contains local state and cannot be released: $ForbiddenPath"
+    }
+}
 
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
 if (Test-Path -LiteralPath (Join-Path $ReleaseDir "portable")) {
@@ -46,6 +71,10 @@ if (Test-Path -LiteralPath (Join-Path $ReleaseDir "portable")) {
 New-Item -ItemType Directory -Force -Path $PortableStage | Out-Null
 
 Copy-Item -LiteralPath $PortableExe -Destination (Join-Path $PortableStage "ExcelCellSummaryTool.exe") -Force
+Copy-Item -LiteralPath $OcrRuntimeSource -Destination (Join-Path $PortableStage "umi-ocr") -Recurse -Force
+Copy-Item -LiteralPath $LicenseSource -Destination (Join-Path $PortableStage "LICENSE") -Force
+Copy-Item -LiteralPath $ThirdPartyNoticeSource -Destination (Join-Path $PortableStage "THIRD_PARTY_NOTICES.md") -Force
+Copy-Item -LiteralPath $ThirdPartyLicensesSource -Destination (Join-Path $PortableStage "THIRD_PARTY_LICENSES") -Recurse -Force
 Copy-Item -LiteralPath $SetupSource -Destination $SetupTarget -Force
 
 if (Test-Path -LiteralPath $PortableZip) {
@@ -54,33 +83,34 @@ if (Test-Path -LiteralPath $PortableZip) {
 Compress-Archive -Path $PortableStage -DestinationPath $PortableZip -Force
 
 $notes = @(
-    "# Excel Cell Summary Tool v$Version",
+    "# Financial Tool 财务工具箱 v$Version",
     "",
-    "## Added",
-    "- Migrated to a Tauri + React + TypeScript + CSS/Tailwind desktop architecture.",
-    "- Uses WebView rendering for clearer small text on the dark UI.",
-    "- Uses a Cockpit Tools inspired productivity layout with left navigation and focused content panes.",
-    "- Uses a Rust backend for schemes, file filtering, Excel reading, and summary export.",
-    "- Provides portable zip and Tauri NSIS setup outputs.",
+    "## 新增",
+    "- 集成 Umi-OCR Rapid v2.1.5，本地完成图片文字识别。",
+    "- 新增一键截图 OCR，识别文字自动写入剪贴板。",
+    "- 新增红框表头、蓝框数据的 Excel 截图规则定位。",
+    "- 图片生成的输出列名和单元格先进入可编辑预览，确认后追加到规则配置。",
+    "- OCR 设置与插件入口独立保留，为后续财务工具插件扩展预留空间。",
     "",
-    "## Features",
-    "- Supports .xlsx / .xlsm / .xltx / .xltm files.",
-    "- Skips Excel temporary files.",
-    "- Supports Chinese paths, filenames, and sheet names.",
-    "- Supports exact / contains / index sheet matching.",
-    "- Supports schemes, rule editing, progress events, and logs.",
-    "- Supports drag-and-drop rule ordering from the rule table handle.",
-    "- Audits release packages for credentials, private paths, and unexpected portable files.",
+    "## 既有功能",
+    "- 支持 .xlsx / .xlsm / .xltx / .xltm 文件定向汇总。",
+    "- 支持 exact / contains / index Sheet 定位、冲突选择和规则拖动排序。",
+    "- 方案与 OCR 用户设置存放在用户数据目录，更新 portable 主程序不会覆盖。",
+    "- 发布产物执行文件清单和敏感数据审计。",
     "",
-    "## Download",
-    "Recommended setup package:",
+    "## 下载",
+    "普通用户建议下载：",
     "ExcelCellSummaryTool-v$Version-win64-setup.exe",
     "",
-    "Portable package:",
+    "免安装用户下载：",
     "ExcelCellSummaryTool-v$Version-win64-portable.zip",
     "",
-    "## Verify",
-    "Use SHA256SUMS.txt to verify downloaded files."
+    "## 隐私与许可",
+    "- OCR 请求只发送到本机 127.0.0.1，不上传图片。",
+    "- Umi-OCR 及相关第三方许可见 THIRD_PARTY_NOTICES.md。",
+    "",
+    "## 校验",
+    "使用 SHA256SUMS.txt 校验下载文件完整性。"
 ) -join [Environment]::NewLine
 $notes | Set-Content -LiteralPath $NotesPath -Encoding UTF8
 

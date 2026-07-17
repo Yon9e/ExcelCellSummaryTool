@@ -6,4 +6,8 @@ describe("navigation", () => {
     expect(pages.map((page) => page.key)).toContain("about");
     expect(pages.find((page) => page.key === "about")?.label).toBe("关于");
   });
+
+  it("exposes OCR as a first-class financial tool page", () => {
+    expect(pages.find((page) => page.key === "ocr")?.label).toBe("截图识字");
+  });
 });

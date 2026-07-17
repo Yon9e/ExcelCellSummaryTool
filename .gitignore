@@ -32,3 +32,5 @@ Thumbs.db
 *.7z
 *.rar
 *.exe
+third_party/umi-ocr/runtime/
+third_party/umi-ocr/downloads/

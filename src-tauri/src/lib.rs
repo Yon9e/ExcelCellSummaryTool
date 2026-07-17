@@ -17,17 +17,29 @@ pub fn run() {
             save_scheme,
             delete_scheme,
             path_exists,
+            get_ocr_runtime_status,
+            prepare_ocr_runtime,
+            read_image_file,
+            ocr_image_base64,
+            start_screenshot_ocr,
+            show_ocr_settings,
             collect_sheet_conflicts,
             open_output_file,
             run_summary
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                ocr::shutdown(app_handle);
+            }
+        });
 }
 
 mod excel_summary;
 mod file_filter;
 mod models;
+mod ocr;
 mod scheme_store;
 
 use std::path::{Path, PathBuf};
@@ -55,6 +67,52 @@ fn delete_scheme(name: String) -> Result<bool, String> {
 #[tauri::command]
 fn path_exists(path: String) -> bool {
     Path::new(path.trim()).exists()
+}
+
+#[tauri::command]
+fn get_ocr_runtime_status(app: tauri::AppHandle) -> ocr::OcrRuntimeStatus {
+    ocr::runtime_status(&app)
+}
+
+#[tauri::command]
+async fn prepare_ocr_runtime(app: tauri::AppHandle) -> Result<ocr::OcrRuntimeStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        ocr::prepare_runtime(&app)?;
+        Ok(ocr::runtime_status(&app))
+    })
+    .await
+    .map_err(|error| format!("OCR 初始化任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn read_image_file(path: String) -> Result<ocr::ImagePayload, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::read_image(&path))
+        .await
+        .map_err(|error| format!("图片读取任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn ocr_image_base64(
+    app: tauri::AppHandle,
+    image_base64: String,
+) -> Result<ocr::OcrImageResult, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::recognize_image(&app, &image_base64))
+        .await
+        .map_err(|error| format!("OCR 后台任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn start_screenshot_ocr(app: tauri::AppHandle, window: Window) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::start_screenshot_ocr(&app, &window))
+        .await
+        .map_err(|error| format!("截图 OCR 后台任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn show_ocr_settings(app: tauri::AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::show_settings(&app))
+        .await
+        .map_err(|error| format!("打开 OCR 设置任务失败：{error}"))?
 }
 
 #[tauri::command]

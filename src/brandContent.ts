@@ -1,3 +1,3 @@
 export function getBrandSubtitle(): string | null {
-  return null;
+  return "Excel 汇总与 OCR";
 }

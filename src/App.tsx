@@ -12,6 +12,7 @@ import {
   Plus,
   Rocket,
   Save,
+  ScanSearch,
   Trash2,
 } from "lucide-react";
 import type {
@@ -34,6 +35,8 @@ import { reorderRules } from "./ruleOrdering";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
 import { SupportWindowContent } from "./SupportWindowContent";
 import { AboutPage } from "./AboutPage";
+import { OcrPage } from "./OcrPage";
+import { RuleImageImporter } from "./RuleImageImporter";
 import { pages } from "./navigation";
 import {
   getSupportViewFromSearch,
@@ -112,6 +115,7 @@ function App() {
   const [sheetConflicts, setSheetConflicts] = useState<SheetConflict[]>([]);
   const [selectedSheets, setSelectedSheets] = useState<Record<string, string>>({});
   const [pendingRequest, setPendingRequest] = useState<SummaryRequest | null>(null);
+  const [showRuleImageImporter, setShowRuleImageImporter] = useState(false);
 
   const activeTitle = pages.find((page) => page.key === activePage)?.label ?? "";
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
@@ -248,6 +252,13 @@ function App() {
     }
     setRules((items) => items.filter((_, index) => index !== selectedRuleIndex));
     setSelectedRuleIndex(null);
+  }
+
+  function appendImportedRules(importedRules: Rule[]) {
+    setRules((items) => [...items, ...importedRules]);
+    setSelectedRuleIndex(rules.length);
+    setShowRuleImageImporter(false);
+    appendLog("DONE", `已从标注截图追加 ${importedRules.length} 条规则。`);
   }
 
   function startRuleDrag(event: React.DragEvent<HTMLButtonElement>, index: number) {
@@ -414,7 +425,7 @@ function App() {
             <FileSpreadsheet size={26} />
           </div>
           <div>
-            <h1>Excel 汇总</h1>
+            <h1>Financial Tool</h1>
             {brandSubtitle && <p>{brandSubtitle}</p>}
           </div>
         </div>
@@ -443,8 +454,8 @@ function App() {
       <main className="workspace">
         <header className="window-bar" data-tauri-drag-region>
           <div>
-            <h2>Excel 单元格定向汇总工具</h2>
-            <p>批量读取 Excel 指定 Sheet 与单元格并汇总输出</p>
+            <h2>Financial Tool 财务工具箱</h2>
+            <p>Excel 定向汇总、截图识字与规则定位</p>
           </div>
           <div className="window-actions">
             <button className="soft-button" onClick={() => void openHelpWindow()}>
@@ -462,6 +473,10 @@ function App() {
             </div>
             {activePage === "rules" && (
               <div className="toolbar">
+                <button className="soft-button" onClick={() => setShowRuleImageImporter(true)}>
+                  <ScanSearch size={18} />
+                  图片生成规则
+                </button>
                 <button className="soft-button" onClick={addRule}>
                   <Plus size={18} />
                   新增规则
@@ -687,6 +702,8 @@ function App() {
             </div>
           )}
 
+          {activePage === "ocr" && <OcrPage onLog={appendLog} />}
+
           {activePage === "about" && <AboutPage />}
         </section>
       </main>
@@ -739,6 +756,13 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {showRuleImageImporter && (
+        <RuleImageImporter
+          onClose={() => setShowRuleImageImporter(false)}
+          onAppend={appendImportedRules}
+        />
       )}
 
     </div>

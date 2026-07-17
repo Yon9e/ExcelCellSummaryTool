@@ -13,9 +13,9 @@ export interface AboutContent {
 
 export function getAboutContent(): AboutContent {
   return {
-    title: "Excel 单元格定向汇总工具",
-    version: "v0.1.0",
-    description: "批量读取 Excel 指定 Sheet 与单元格并汇总输出",
+    title: "Financial Tool 财务工具箱",
+    version: "v0.2.0",
+    description: "Excel 定向汇总、截图识字与图片规则定位",
     cards: [
       { title: "主作者", description: "Yon9e", detail: "个人发布与维护" },
       {
@@ -30,8 +30,8 @@ export function getAboutContent(): AboutContent {
       },
       {
         title: "更新记录",
-        description: "v0.1.0",
-        detail: "桌面版、规则配置、Sheet 冲突选择、完成后打开输出文件、独立帮助窗口",
+        description: "v0.2.0",
+        detail: "集成 Umi-OCR、本地截图识字、标注截图生成规则和独立 OCR 插件设置",
       },
     ],
   };
