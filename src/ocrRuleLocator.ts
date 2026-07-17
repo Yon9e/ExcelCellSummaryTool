@@ -180,10 +180,23 @@ function detectRectanglesByColor(buffer: PixelBuffer, predicate: ColorPredicate)
       minY = Math.min(minY, y);
       maxY = Math.max(maxY, y);
 
-      if (x > 0) enqueue(index - 1);
-      if (x + 1 < width) enqueue(index + 1);
-      if (y > 0) enqueue(index - width);
-      if (y + 1 < height) enqueue(index + width);
+      for (let offsetY = -2; offsetY <= 2; offsetY += 1) {
+        for (let offsetX = -2; offsetX <= 2; offsetX += 1) {
+          if (offsetX === 0 && offsetY === 0) {
+            continue;
+          }
+          const neighborX = x + offsetX;
+          const neighborY = y + offsetY;
+          if (
+            neighborX >= 0
+            && neighborX < width
+            && neighborY >= 0
+            && neighborY < height
+          ) {
+            enqueue(neighborY * width + neighborX);
+          }
+        }
+      }
     }
 
     const rect = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
@@ -216,7 +229,7 @@ function looksLikeOutlinedRectangle(
     return false;
   }
   const density = count / (rect.width * rect.height);
-  if (density < 0.008 || density > 0.48) {
+  if (density < 0.003 || density > 0.48) {
     return false;
   }
   const band = Math.max(2, Math.min(8, Math.round(Math.min(rect.width, rect.height) * 0.12)));

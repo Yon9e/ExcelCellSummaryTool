@@ -35,6 +35,37 @@ function drawRect(
   }
 }
 
+function drawSparseSinglePixelRect(
+  pixels: Uint8ClampedArray,
+  width: number,
+  x: number,
+  y: number,
+  rectWidth: number,
+  rectHeight: number,
+  color: [number, number, number],
+) {
+  for (let px = x; px < x + rectWidth; px += 1) {
+    if ((px - x) % 19 !== 0) {
+      setPixel(px, y);
+      setPixel(px, y + rectHeight - 1);
+    }
+  }
+  for (let py = y; py < y + rectHeight; py += 1) {
+    if ((py - y) % 17 !== 0) {
+      setPixel(x, py);
+      setPixel(x + rectWidth - 1, py);
+    }
+  }
+
+  function setPixel(px: number, py: number) {
+    const index = (py * width + px) * 4;
+    pixels[index] = color[0];
+    pixels[index + 1] = color[1];
+    pixels[index + 2] = color[2];
+    pixels[index + 3] = 255;
+  }
+}
+
 function item(text: string, x: number, y: number, width = 100): OcrTextItem {
   return {
     text,
@@ -69,6 +100,19 @@ describe("detectAnnotationRectangles", () => {
     expect(result.blue).toHaveLength(1);
     expect(result.red[0]).toMatchObject({ x: 10, y: 24, width: 82, height: 34 });
     expect(result.blue[0]).toMatchObject({ x: 108, y: 24, width: 70, height: 34 });
+  });
+
+  it("finds single-pixel annotation rectangles with small screenshot gaps", () => {
+    const width = 320;
+    const height = 180;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    drawSparseSinglePixelRect(pixels, width, 14, 26, 132, 92, [245, 66, 70]);
+    drawSparseSinglePixelRect(pixels, width, 174, 26, 112, 92, [20, 155, 245]);
+
+    const result = detectAnnotationRectangles({ data: pixels, width, height });
+
+    expect(result.red).toEqual([{ x: 14, y: 26, width: 132, height: 92 }]);
+    expect(result.blue).toEqual([{ x: 174, y: 26, width: 112, height: 92 }]);
   });
 });
 

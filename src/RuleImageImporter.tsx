@@ -9,7 +9,7 @@ import {
   type PixelRect,
   type RuleCandidate,
 } from "./ocrRuleLocator";
-import type { ImagePayload, OcrImageResult, Rule, SheetMode } from "./types";
+import type { ImagePayload, OcrImageResult, OcrTextItem, Rule, SheetMode } from "./types";
 
 interface RuleImageImporterProps {
   onClose: () => void;
@@ -48,10 +48,9 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     setPreviewUrl(payload.data_url);
     setStatus(`正在识别${source}中的标注框、表头和 Excel 坐标...`);
     try {
-      const ocrResult = await invoke<OcrImageResult>("ocr_image_base64", {
-        imageBase64: payload.data_url,
-      });
-      const analysis = await analyzeRuleImage(payload.data_url, ocrResult);
+      const analysis = await analyzeRuleImage(payload.data_url, (imageBase64) =>
+        invoke<OcrImageResult>("ocr_image_base64", { imageBase64 })
+      );
       setPreviewUrl(analysis.previewUrl);
       setCandidates(analysis.candidates);
       setStatus(
@@ -304,7 +303,20 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   );
 }
 
-async function analyzeRuleImage(dataUrl: string, ocrResult: OcrImageResult): Promise<AnalysisResult> {
+export interface OcrRegion {
+  dataUrl: string;
+  sourceX: number;
+  sourceY: number;
+  scaleX: number;
+  scaleY: number;
+}
+
+type RecognizeImage = (imageBase64: string) => Promise<OcrImageResult>;
+
+async function analyzeRuleImage(
+  dataUrl: string,
+  recognizeImage: RecognizeImage,
+): Promise<AnalysisResult> {
   const image = await loadImage(dataUrl);
   const pixelCount = image.naturalWidth * image.naturalHeight;
   if (!image.naturalWidth || !image.naturalHeight || pixelCount > 16_000_000) {
@@ -320,8 +332,16 @@ async function analyzeRuleImage(dataUrl: string, ocrResult: OcrImageResult): Pro
   context.drawImage(image, 0, 0);
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const annotations = detectAnnotationRectangles(imageData);
+  const ocrItems: OcrTextItem[] = [];
+  if (annotations.red.length) {
+    const regions = createOcrRegions(canvas, annotations.red);
+    for (const region of regions) {
+      const result = await recognizeImage(region.dataUrl);
+      ocrItems.push(...mapOcrItemsToSource(result.items, region));
+    }
+  }
   const candidates = locateRuleCandidates(
-    ocrResult.items,
+    ocrItems,
     annotations,
     canvas.width,
     canvas.height,
@@ -332,6 +352,82 @@ async function analyzeRuleImage(dataUrl: string, ocrResult: OcrImageResult): Pro
   drawDetections(context, annotations.red, "#ff6272", "表头");
   drawDetections(context, annotations.blue, "#2ea8ff", "数据");
   return { candidates, annotations, previewUrl: canvas.toDataURL("image/png") };
+}
+
+export function createOcrRegions(
+  source: HTMLCanvasElement,
+  redRectangles: PixelRect[],
+): OcrRegion[] {
+  if (!redRectangles.length) {
+    return [];
+  }
+  const padding = Math.max(8, Math.round(source.height * 0.008));
+  const minY = Math.max(0, Math.min(...redRectangles.map((rect) => rect.y)) - padding);
+  const maxY = Math.min(
+    source.height,
+    Math.max(...redRectangles.map((rect) => rect.y + rect.height)) + padding,
+  );
+  const labelRight = Math.min(
+    source.width,
+    Math.max(...redRectangles.map((rect) => rect.x + rect.width)) + padding,
+  );
+  const headerHeight = Math.min(
+    source.height,
+    Math.max(32, Math.round(source.height * 0.035)),
+  );
+
+  return [
+    createScaledCrop(source, 0, minY, labelRight, maxY - minY, 4),
+    createScaledCrop(source, 0, 0, source.width, headerHeight, 8),
+  ];
+}
+
+function createScaledCrop(
+  source: HTMLCanvasElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  requestedScale: number,
+): OcrRegion {
+  const maxPixels = 15_000_000;
+  const maxSide = 24_000;
+  const scale = Math.max(
+    1,
+    Math.min(
+      requestedScale,
+      Math.sqrt(maxPixels / Math.max(1, width * height)),
+      maxSide / Math.max(1, width, height),
+    ),
+  );
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("当前窗口无法放大 OCR 识别区域。");
+  }
+  context.imageSmoothingEnabled = false;
+  context.drawImage(source, x, y, width, height, 0, 0, targetWidth, targetHeight);
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    sourceX: x,
+    sourceY: y,
+    scaleX: targetWidth / width,
+    scaleY: targetHeight / height,
+  };
+}
+
+export function mapOcrItemsToSource(items: OcrTextItem[], region: OcrRegion): OcrTextItem[] {
+  return items.map((item) => ({
+    ...item,
+    box_points: item.box_points.map(([x, y]) => [
+      x / region.scaleX + region.sourceX,
+      y / region.scaleY + region.sourceY,
+    ]),
+  }));
 }
 
 function drawDetections(

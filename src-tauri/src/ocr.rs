@@ -251,7 +251,7 @@ pub fn recognize_image(app: &AppHandle, image_base64: &str) -> Result<OcrImageRe
         "options": {
             "data.format": "dict",
             "tbpu.parser": "multi_none",
-            "ocr.limit_side_len": 4320
+            "ocr.limit_side_len": 24000
         }
     });
     let client = http_client(Duration::from_secs(90))?;
