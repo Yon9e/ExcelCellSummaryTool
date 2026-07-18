@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.2.1",
+    [string]$Version = "0.2.2",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -96,6 +96,7 @@ $notes = @(
     "",
     "## 修复",
     "- 修复剪贴板中的图片格式延迟就绪时，图片规则自动识别会跳过该截图的问题。",
+    "- 修复 Excel 浅青填充和边缘蓝色噪声导致标注蓝框漏检的问题。",
     "",
     "## 既有功能",
     "- 支持 .xlsx / .xlsm / .xltx / .xltm 文件定向汇总。",

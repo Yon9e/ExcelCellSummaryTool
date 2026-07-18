@@ -38,7 +38,7 @@ const isRed: ColorPredicate = (red, green, blue) =>
   red >= 175 && red - green >= 45 && red - blue >= 45 && green <= 190;
 
 const isBlue: ColorPredicate = (red, green, blue) =>
-  blue >= 145 && blue - red >= 45 && green - red >= 25 && green >= 75;
+  blue >= 145 && blue - red >= 60 && blue - green >= 18 && green >= 75;
 
 export function detectAnnotationRectangles(buffer: PixelBuffer): AnnotationRectangles {
   return {
@@ -200,8 +200,9 @@ function detectRectanglesByColor(buffer: PixelBuffer, predicate: ColorPredicate)
     }
 
     const rect = { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-    if (looksLikeOutlinedRectangle(rect, count, mask, width, height)) {
-      rectangles.push(rect);
+    const outlined = findOutlinedRectangle(rect, count, mask, width, height);
+    if (outlined) {
+      rectangles.push(outlined);
     }
 
     function enqueue(index: number) {
@@ -214,6 +215,85 @@ function detectRectanglesByColor(buffer: PixelBuffer, predicate: ColorPredicate)
   }
 
   return rectangles.sort((left, right) => left.y - right.y || left.x - right.x);
+}
+
+function findOutlinedRectangle(
+  rect: PixelRect,
+  count: number,
+  mask: Uint8Array,
+  imageWidth: number,
+  imageHeight: number,
+): PixelRect | null {
+  const density = count / (rect.width * rect.height);
+  if (density > 0.48) {
+    return null;
+  }
+  if (looksLikeOutlinedRectangle(rect, count, mask, imageWidth, imageHeight)) {
+    return rect;
+  }
+
+  const horizontalBands = findHorizontalLineBands(rect, mask, imageWidth);
+  if (horizontalBands.length < 2 || horizontalBands.length > 32) {
+    return null;
+  }
+
+  const rowPixelPrefix = createRowPixelPrefix(rect, mask, imageWidth);
+  let best: PixelRect | null = null;
+  for (let topIndex = 0; topIndex < horizontalBands.length - 1; topIndex += 1) {
+    for (let bottomIndex = topIndex + 1; bottomIndex < horizontalBands.length; bottomIndex += 1) {
+      const top = horizontalBands[topIndex];
+      const bottom = horizontalBands[bottomIndex];
+      const candidate: PixelRect = {
+        x: rect.x,
+        y: top.start,
+        width: rect.width,
+        height: bottom.end - top.start + 1,
+      };
+      const candidateCount = rowPixelPrefix[bottom.end - rect.y + 1] - rowPixelPrefix[top.start - rect.y];
+      if (!looksLikeOutlinedRectangle(candidate, candidateCount, mask, imageWidth, imageHeight)) {
+        continue;
+      }
+      if (!best || candidate.width * candidate.height > best.width * best.height) {
+        best = candidate;
+      }
+    }
+  }
+  return best;
+}
+
+function findHorizontalLineBands(
+  rect: PixelRect,
+  mask: Uint8Array,
+  imageWidth: number,
+): Array<{ start: number; end: number }> {
+  const bands: Array<{ start: number; end: number }> = [];
+  let start: number | null = null;
+  for (let y = rect.y; y < rect.y + rect.height; y += 1) {
+    const isDenseLine = horizontalEdgeCoverage(rect, y, 1, mask, imageWidth) >= 0.45;
+    if (isDenseLine && start === null) {
+      start = y;
+    } else if (!isDenseLine && start !== null) {
+      bands.push({ start, end: y - 1 });
+      start = null;
+    }
+  }
+  if (start !== null) {
+    bands.push({ start, end: rect.y + rect.height - 1 });
+  }
+  return bands;
+}
+
+function createRowPixelPrefix(rect: PixelRect, mask: Uint8Array, imageWidth: number): number[] {
+  const prefix = [0];
+  for (let y = rect.y; y < rect.y + rect.height; y += 1) {
+    let rowCount = 0;
+    const rowStart = y * imageWidth + rect.x;
+    for (let x = 0; x < rect.width; x += 1) {
+      rowCount += mask[rowStart + x];
+    }
+    prefix.push(prefix[prefix.length - 1] + rowCount);
+  }
+  return prefix;
 }
 
 function looksLikeOutlinedRectangle(

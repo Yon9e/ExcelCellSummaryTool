@@ -14,7 +14,7 @@ export interface AboutContent {
 export function getAboutContent(): AboutContent {
   return {
     title: "Financial Tool 财务工具箱",
-    version: "v0.2.1",
+    version: "v0.2.2",
     description: "Excel 定向汇总、截图识字与图片规则定位",
     cards: [
       { title: "主作者", description: "Yon9e", detail: "个人发布与维护" },
@@ -30,8 +30,8 @@ export function getAboutContent(): AboutContent {
       },
       {
         title: "更新记录",
-        description: "v0.2.1",
-        detail: "修复剪贴板图片延迟就绪时，标注截图不会自动识别的问题",
+        description: "v0.2.2",
+        detail: "修复 Excel 填充色和边缘噪声导致标注蓝框漏检的问题",
       },
     ],
   };

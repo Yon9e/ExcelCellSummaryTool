@@ -66,6 +66,39 @@ function drawSparseSinglePixelRect(
   }
 }
 
+function fillRect(
+  pixels: Uint8ClampedArray,
+  width: number,
+  x: number,
+  y: number,
+  rectWidth: number,
+  rectHeight: number,
+  color: [number, number, number],
+) {
+  for (let py = y; py < y + rectHeight; py += 1) {
+    for (let px = x; px < x + rectWidth; px += 1) {
+      const index = (py * width + px) * 4;
+      pixels.set([color[0], color[1], color[2], 255], index);
+    }
+  }
+}
+
+function drawVerticalSegment(
+  pixels: Uint8ClampedArray,
+  width: number,
+  x: number,
+  y: number,
+  height: number,
+  color: [number, number, number],
+) {
+  for (let px = x; px < x + 3; px += 1) {
+    for (let py = y; py < y + height; py += 1) {
+      const index = (py * width + px) * 4;
+      pixels.set([color[0], color[1], color[2], 255], index);
+    }
+  }
+}
+
 function item(text: string, x: number, y: number, width = 100): OcrTextItem {
   return {
     text,
@@ -113,6 +146,35 @@ describe("detectAnnotationRectangles", () => {
 
     expect(result.red).toEqual([{ x: 14, y: 26, width: 132, height: 92 }]);
     expect(result.blue).toEqual([{ x: 174, y: 26, width: 112, height: 92 }]);
+  });
+
+  it("ignores cyan Excel fills that touch blue annotation outlines", () => {
+    const width = 440;
+    const height = 300;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    fillRect(pixels, width, 20, 40, 205, 190, [174, 238, 238]);
+    drawRect(pixels, width, 220, 48, 130, 70, [0, 176, 240]);
+    drawRect(pixels, width, 220, 154, 130, 70, [0, 176, 240]);
+
+    const result = detectAnnotationRectangles({ data: pixels, width, height });
+
+    expect(result.blue).toEqual([
+      { x: 220, y: 48, width: 130, height: 70 },
+      { x: 220, y: 154, width: 130, height: 70 },
+    ]);
+  });
+
+  it("trims vertical blue noise above an outlined rectangle", () => {
+    const width = 360;
+    const height = 210;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    drawRect(pixels, width, 160, 48, 128, 104, [0, 176, 240]);
+    drawVerticalSegment(pixels, width, 160, 26, 22, [0, 176, 240]);
+    drawVerticalSegment(pixels, width, 285, 26, 22, [0, 176, 240]);
+
+    const result = detectAnnotationRectangles({ data: pixels, width, height });
+
+    expect(result.blue).toEqual([{ x: 160, y: 48, width: 128, height: 104 }]);
   });
 });
 
