@@ -14,7 +14,7 @@ export interface AboutContent {
 export function getAboutContent(): AboutContent {
   return {
     title: "Financial Tool 财务工具箱",
-    version: "v0.2.0",
+    version: "v0.2.1",
     description: "Excel 定向汇总、截图识字与图片规则定位",
     cards: [
       { title: "主作者", description: "Yon9e", detail: "个人发布与维护" },
@@ -30,8 +30,8 @@ export function getAboutContent(): AboutContent {
       },
       {
         title: "更新记录",
-        description: "v0.2.0",
-        detail: "集成 Umi-OCR、本地截图识字、标注截图生成规则和独立 OCR 插件设置",
+        description: "v0.2.1",
+        detail: "修复剪贴板图片延迟就绪时，标注截图不会自动识别的问题",
       },
     ],
   };

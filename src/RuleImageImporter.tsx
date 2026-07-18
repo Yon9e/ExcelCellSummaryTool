@@ -3,6 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AlertTriangle, ClipboardPaste, FileImage, ScanSearch, X } from "lucide-react";
 import {
+  createClipboardPollingState,
+  markClipboardAttempt,
+  markClipboardSuccess,
+  shouldAttemptClipboardRead,
+} from "./clipboardPolling";
+import {
   detectAnnotationRectangles,
   locateRuleCandidates,
   type AnnotationRectangles,
@@ -34,7 +40,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   const busyRef = useRef(false);
   const selectingFileRef = useRef(false);
   const readingClipboardRef = useRef(false);
-  const lastClipboardSequence = useRef<number | null>(null);
+  const clipboardPollingRef = useRef(createClipboardPollingState());
 
   const analyzePayload = useCallback(async (payload: ImagePayload, source: string) => {
     if (busyRef.current) {
@@ -85,12 +91,15 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       readingClipboardRef.current = true;
       try {
         const sequence = await invoke<number>("get_clipboard_sequence_number");
-        if (!initial && sequence === lastClipboardSequence.current) {
+        const pollingState = clipboardPollingRef.current;
+        const attemptedAt = Date.now();
+        if (!shouldAttemptClipboardRead(pollingState, sequence, attemptedAt, initial)) {
           return;
         }
+        markClipboardAttempt(pollingState, sequence, attemptedAt);
         const payload = await invoke<ImagePayload | null>("read_clipboard_image");
-        lastClipboardSequence.current = sequence;
         if (!stopped && payload) {
+          markClipboardSuccess(pollingState, sequence);
           await analyzePayload(payload, "剪贴板截图");
         }
       } catch {
@@ -103,9 +112,12 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     }
 
     void inspectClipboard(true);
+    const inspectOnFocus = () => void inspectClipboard();
+    window.addEventListener("focus", inspectOnFocus);
     const timer = window.setInterval(() => void inspectClipboard(), 700);
     return () => {
       stopped = true;
+      window.removeEventListener("focus", inspectOnFocus);
       window.clearInterval(timer);
     };
   }, [analyzePayload]);
@@ -158,7 +170,10 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
         setError("剪贴板中没有图片，请先复制或截取带红蓝框的 Excel 图片。");
         return;
       }
-      lastClipboardSequence.current = await invoke<number>("get_clipboard_sequence_number");
+      const sequence = await invoke<number>("get_clipboard_sequence_number");
+      const pollingState = clipboardPollingRef.current;
+      markClipboardAttempt(pollingState, sequence, Date.now());
+      markClipboardSuccess(pollingState, sequence);
       busyRef.current = false;
       setBusy(false);
       await analyzePayload(payload, "剪贴板截图");

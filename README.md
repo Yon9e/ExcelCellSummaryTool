@@ -27,8 +27,8 @@
 
 从 GitHub Releases 下载最新版：
 
-- 安装版：`ExcelCellSummaryTool-v0.2.0-win64-setup.exe`
-- 免安装版：`ExcelCellSummaryTool-v0.2.0-win64-portable.zip`
+- 安装版：`ExcelCellSummaryTool-v0.2.1-win64-setup.exe`
+- 免安装版：`ExcelCellSummaryTool-v0.2.1-win64-portable.zip`
 
 安装版直接运行安装程序。免安装版必须先完整解压，再运行 `ExcelCellSummaryTool.exe`；不要只从压缩包中单独取出 exe，因为 OCR 需要同目录的 `umi-ocr` 运行文件。
 
@@ -49,7 +49,7 @@
 
 1. 对 Excel 截图使用红色矩形框标注需要作为输出列名的表头或项目名称。
 2. 使用蓝色矩形框标注同一行需要读取的数据单元格；截图必须保留 Excel 行号和列字母。
-3. 在“规则配置”点击“图片生成规则”，选择截图。
+3. 在“规则配置”点击“图片生成规则”；窗口会自动监听剪贴板，复制截图后会自动分析，也可手动选择本地截图。
 4. 人工填写 Sheet 模式和 Sheet 值，核对候选输出列名与单元格坐标后追加。
 
 ## 文件支持与限制
@@ -98,8 +98,8 @@ Set-Location .\src-tauri
 
 - `release\portable\ExcelCellSummaryTool\ExcelCellSummaryTool.exe`
 - `release\portable\ExcelCellSummaryTool\umi-ocr\Umi-OCR.exe`
-- `release\ExcelCellSummaryTool-v0.2.0-win64-portable.zip`
-- `release\ExcelCellSummaryTool-v0.2.0-win64-setup.exe`
+- `release\ExcelCellSummaryTool-v0.2.1-win64-portable.zip`
+- `release\ExcelCellSummaryTool-v0.2.1-win64-setup.exe`
 - `release\SHA256SUMS.txt`
 
 打包结束会运行 `scripts\audit_release.ps1`，核对 portable 与压缩包文件白名单，并扫描令牌、私钥、本机路径、用户配置和日志。

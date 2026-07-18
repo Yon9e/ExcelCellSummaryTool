@@ -1,12 +1,14 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.2.0"
+    [string]$Version = "0.2.1",
+    [ValidatePattern('^[A-Za-z0-9._-]+$')]
+    [string]$PortableDirectoryName = "portable"
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$PortableRoot = Join-Path $ReleaseDir "portable\ExcelCellSummaryTool"
+$PortableRoot = Join-Path $ReleaseDir "$PortableDirectoryName\ExcelCellSummaryTool"
 $PortableExe = Join-Path $PortableRoot "ExcelCellSummaryTool.exe"
 $PortableOcrRoot = Join-Path $PortableRoot "umi-ocr"
 $PortableZip = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.zip"

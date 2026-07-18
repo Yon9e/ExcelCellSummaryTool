@@ -1,11 +1,13 @@
 ﻿param(
-    [string]$Version = "0.2.0"
+    [string]$Version = "0.2.1",
+    [ValidatePattern('^[A-Za-z0-9._-]+$')]
+    [string]$PortableDirectoryName = "portable"
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$PortableStage = Join-Path $ReleaseDir "portable\ExcelCellSummaryTool"
+$PortableStage = Join-Path $ReleaseDir "$PortableDirectoryName\ExcelCellSummaryTool"
 $PortableExe = Join-Path $ProjectRoot "src-tauri\target\release\excel-cell-summary-tool.exe"
 $SetupSource = Join-Path $ProjectRoot "src-tauri\target\release\bundle\nsis\Financial Tool_$($Version)_x64-setup.exe"
 $PortableZip = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.zip"
@@ -65,8 +67,8 @@ foreach ($ForbiddenPath in $ForbiddenRuntimeState) {
 }
 
 New-Item -ItemType Directory -Force -Path $ReleaseDir | Out-Null
-if (Test-Path -LiteralPath (Join-Path $ReleaseDir "portable")) {
-    Remove-Item -LiteralPath (Join-Path $ReleaseDir "portable") -Recurse -Force
+if (Test-Path -LiteralPath (Join-Path $ReleaseDir $PortableDirectoryName)) {
+    Remove-Item -LiteralPath (Join-Path $ReleaseDir $PortableDirectoryName) -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $PortableStage | Out-Null
 
@@ -91,6 +93,9 @@ $notes = @(
     "- 新增红框表头、蓝框数据的 Excel 截图规则定位。",
     "- 图片生成的输出列名和单元格先进入可编辑预览，确认后追加到规则配置。",
     "- OCR 设置与插件入口独立保留，为后续财务工具插件扩展预留空间。",
+    "",
+    "## 修复",
+    "- 修复剪贴板中的图片格式延迟就绪时，图片规则自动识别会跳过该截图的问题。",
     "",
     "## 既有功能",
     "- 支持 .xlsx / .xlsm / .xltx / .xltm 文件定向汇总。",
