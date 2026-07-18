@@ -18,6 +18,19 @@ const UMI_EXE: &str = "Umi-OCR.exe";
 const UMI_PORT: u16 = 12_240;
 const MAX_IMAGE_BYTES: u64 = 30 * 1024 * 1024;
 const MAX_IMAGE_PIXELS: usize = 16_000_000;
+const OCR_LANGUAGE_SIMPLIFIED_CHINESE: &str = "简体中文";
+const OCR_LANGUAGE_SIMPLIFIED_CHINESE_ENCODED: &str = r"\x7b80\x4f53\x4e2d\x6587";
+const OCR_TEXT_LAYOUTS: &[&str] = &[
+    "multi_para",
+    "multi_line",
+    "multi_none",
+    "single_para",
+    "single_line",
+    "single_none",
+    "single_code",
+    "none",
+];
+const OCR_NOTIFICATION_TYPES: &[&str] = &["default", "inside", "onlyInside", "onlyOutside", "none"];
 
 static OCR_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
@@ -27,6 +40,37 @@ pub struct OcrRuntimeStatus {
     pub bundled: bool,
     pub prepared: bool,
     pub message: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct OcrSettings {
+    pub language: String,
+    pub max_side_len: u32,
+    pub correct_text_direction: bool,
+    pub text_layout: String,
+    pub screenshot_hotkey: String,
+    pub paste_hotkey: String,
+    pub repeat_screenshot_hotkey: String,
+    pub copy_result: bool,
+    pub pop_main_window: bool,
+    pub notification_type: String,
+}
+
+impl Default for OcrSettings {
+    fn default() -> Self {
+        Self {
+            language: OCR_LANGUAGE_SIMPLIFIED_CHINESE.to_string(),
+            max_side_len: 1024,
+            correct_text_direction: false,
+            text_layout: "multi_none".to_string(),
+            screenshot_hotkey: "alt+s".to_string(),
+            paste_hotkey: "win+alt+v".to_string(),
+            repeat_screenshot_hotkey: String::new(),
+            copy_result: true,
+            pop_main_window: false,
+            notification_type: "default".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -117,6 +161,32 @@ pub fn initialize_runtime(app: &AppHandle) -> Result<OcrRuntimeStatus, String> {
 
     ensure_service(&runtime)?;
     Ok(runtime_status(app))
+}
+
+pub fn get_settings(app: &AppHandle) -> Result<OcrSettings, String> {
+    let runtime = prepare_runtime(app)?;
+    read_ocr_settings(&runtime)
+}
+
+pub fn save_settings(app: &AppHandle, settings: OcrSettings) -> Result<OcrSettings, String> {
+    validate_ocr_settings(&settings)?;
+    let _guard = ocr_lock()
+        .lock()
+        .map_err(|_| "OCR 任务锁已损坏，请重启应用。".to_string())?;
+
+    if another_app_instance_is_running() {
+        return Err(
+            "检测到另一个 Financial Tool 实例正在运行。请关闭其他实例后再保存 OCR 设置。"
+                .to_string(),
+        );
+    }
+
+    let runtime = prepare_runtime(app)?;
+    let listener_pid = private_listener_pid(&runtime)?;
+    if write_ocr_settings(&runtime, &settings)? {
+        restart_private_service(&runtime, listener_pid)?;
+    }
+    read_ocr_settings(&runtime)
 }
 
 fn prepare_runtime_with_state(app: &AppHandle) -> Result<(PathBuf, bool), String> {
@@ -245,13 +315,16 @@ pub fn recognize_image(app: &AppHandle, image_base64: &str) -> Result<OcrImageRe
 
     let runtime = prepare_runtime(app)?;
     ensure_service(&runtime)?;
+    let settings = read_ocr_settings(&runtime)?;
 
     let payload = json!({
         "base64": base64,
         "options": {
             "data.format": "dict",
-            "tbpu.parser": "multi_none",
-            "ocr.limit_side_len": 24000
+            "ocr.angle": settings.correct_text_direction,
+            "ocr.language": settings.language,
+            "ocr.maxSideLen": settings.max_side_len,
+            "tbpu.parser": settings.text_layout
         }
     });
     let client = http_client(Duration::from_secs(90))?;
@@ -399,7 +472,7 @@ fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(format!("读取 OCR 设置失败：{error}")),
     };
-    let mut content = upsert_ini_section_values(
+    let mut content = ensure_ini_section_values(
         &original,
         "Global",
         &[
@@ -410,14 +483,21 @@ fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
             ("window.closeWin2Hide", "true"),
             ("window.hideTrayIcon", "true"),
             ("screenshot.hideWindow", "true"),
+            ("logs.saveLogLevel", "ERROR"),
+        ],
+    );
+    // 这些项目由 Financial Tool 的本地 OCR 服务依赖，不能被原生设置页改写。
+    content = upsert_ini_section_values(
+        &content,
+        "Global",
+        &[
             ("server.enable", "true"),
             ("server.host", "127.0.0.1"),
             ("server.port", "12240"),
-            ("logs.saveLogLevel", "ERROR"),
             ("ocr.api", "win7_x64_RapidOCR-json"),
         ],
     );
-    content = upsert_ini_section_values(
+    content = ensure_ini_section_values(
         &content,
         "ScreenshotOCR",
         &[
@@ -434,7 +514,7 @@ fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
             ("other.simpleNotificationType", "default"),
         ],
     );
-    content = upsert_ini_section_values(
+    content = ensure_ini_section_values(
         &content,
         "TabPageManager",
         &[
@@ -465,7 +545,206 @@ fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
     Ok(changed)
 }
 
-fn upsert_ini_section_values(content: &str, section: &str, values: &[(&str, &str)]) -> String {
+fn ocr_settings_path(runtime: &Path) -> PathBuf {
+    runtime.join("UmiOCR-data").join(".settings")
+}
+
+fn read_ocr_settings(runtime: &Path) -> Result<OcrSettings, String> {
+    let path = ocr_settings_path(runtime);
+    let content =
+        fs::read_to_string(&path).map_err(|error| format!("读取 OCR 设置失败：{error}"))?;
+    Ok(parse_ocr_settings(&content))
+}
+
+fn parse_ocr_settings(content: &str) -> OcrSettings {
+    let defaults = OcrSettings::default();
+    let text_layout = read_ini_value(content, "ScreenshotOCR", "tbpu.parser")
+        .filter(|value| OCR_TEXT_LAYOUTS.iter().any(|known| *known == value.trim()))
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| defaults.text_layout.clone());
+    let notification_type =
+        read_ini_value(content, "ScreenshotOCR", "other.simpleNotificationType")
+            .filter(|value| {
+                OCR_NOTIFICATION_TYPES
+                    .iter()
+                    .any(|known| *known == value.trim())
+            })
+            .map(|value| value.trim().to_string())
+            .unwrap_or_else(|| defaults.notification_type.clone());
+    let max_side_len = read_ini_value(content, "ScreenshotOCR", "ocr.maxSideLen")
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .filter(|value| (256..=24_000).contains(value))
+        .unwrap_or(defaults.max_side_len);
+
+    OcrSettings {
+        language: OCR_LANGUAGE_SIMPLIFIED_CHINESE.to_string(),
+        max_side_len,
+        correct_text_direction: read_ini_bool(
+            read_ini_value(content, "ScreenshotOCR", "ocr.angle"),
+            defaults.correct_text_direction,
+        ),
+        text_layout,
+        screenshot_hotkey: read_ini_text(
+            content,
+            "ScreenshotOCR",
+            "hotkey.screenshot",
+            &defaults.screenshot_hotkey,
+        ),
+        paste_hotkey: read_ini_text(
+            content,
+            "ScreenshotOCR",
+            "hotkey.paste",
+            &defaults.paste_hotkey,
+        ),
+        repeat_screenshot_hotkey: read_ini_text(
+            content,
+            "ScreenshotOCR",
+            "hotkey.reScreenshot",
+            &defaults.repeat_screenshot_hotkey,
+        ),
+        copy_result: read_ini_bool(
+            read_ini_value(content, "ScreenshotOCR", "action.copy"),
+            defaults.copy_result,
+        ),
+        pop_main_window: read_ini_bool(
+            read_ini_value(content, "ScreenshotOCR", "action.popMainWindow"),
+            defaults.pop_main_window,
+        ),
+        notification_type,
+    }
+}
+
+fn read_ini_value<'a>(content: &'a str, section: &str, key: &str) -> Option<&'a str> {
+    let mut in_section = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_section = trimmed == format!("[{section}]");
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+        if let Some((existing_key, value)) = trimmed.split_once('=') {
+            if existing_key.trim() == key {
+                return Some(value.trim());
+            }
+        }
+    }
+    None
+}
+
+fn read_ini_bool(value: Option<&str>, default: bool) -> bool {
+    match value.map(str::trim) {
+        Some(value) if value.eq_ignore_ascii_case("true") || value == "1" => true,
+        Some(value) if value.eq_ignore_ascii_case("false") || value == "0" => false,
+        _ => default,
+    }
+}
+
+fn read_ini_text(content: &str, section: &str, key: &str, default: &str) -> String {
+    read_ini_value(content, section, key)
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn validate_ocr_settings(settings: &OcrSettings) -> Result<(), String> {
+    if settings.language != OCR_LANGUAGE_SIMPLIFIED_CHINESE {
+        return Err("当前内置 RapidOCR 仅支持简体中文模型库。".to_string());
+    }
+    if !(256..=24_000).contains(&settings.max_side_len) {
+        return Err("限制图像边长应在 256 到 24000 之间。".to_string());
+    }
+    if !OCR_TEXT_LAYOUTS
+        .iter()
+        .any(|known| *known == settings.text_layout)
+    {
+        return Err("排版解析方案无效。".to_string());
+    }
+    if !OCR_NOTIFICATION_TYPES
+        .iter()
+        .any(|known| *known == settings.notification_type)
+    {
+        return Err("通知弹窗类型无效。".to_string());
+    }
+    validate_hotkey("屏幕截图快捷键", &settings.screenshot_hotkey, false)?;
+    validate_hotkey("粘贴图片快捷键", &settings.paste_hotkey, true)?;
+    validate_hotkey("重复截图快捷键", &settings.repeat_screenshot_hotkey, true)?;
+    Ok(())
+}
+
+fn validate_hotkey(name: &str, value: &str, allow_empty: bool) -> Result<(), String> {
+    let trimmed = value.trim();
+    if !allow_empty && trimmed.is_empty() {
+        return Err(format!("{name}不能为空。"));
+    }
+    if trimmed.len() > 80 || trimmed.contains('\r') || trimmed.contains('\n') {
+        return Err(format!("{name}格式不正确。"));
+    }
+    Ok(())
+}
+
+fn write_ocr_settings(runtime: &Path, settings: &OcrSettings) -> Result<bool, String> {
+    let path = ocr_settings_path(runtime);
+    let original =
+        fs::read_to_string(&path).map_err(|error| format!("读取 OCR 设置失败：{error}"))?;
+    let max_side_len = settings.max_side_len.to_string();
+    let content = upsert_ini_section_values(
+        &original,
+        "ScreenshotOCR",
+        &[
+            (
+                "ocr.angle",
+                if settings.correct_text_direction {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+            ("ocr.language", OCR_LANGUAGE_SIMPLIFIED_CHINESE_ENCODED),
+            ("ocr.maxSideLen", &max_side_len),
+            ("tbpu.parser", settings.text_layout.as_str()),
+            ("hotkey.screenshot", settings.screenshot_hotkey.trim()),
+            ("hotkey.paste", settings.paste_hotkey.trim()),
+            (
+                "hotkey.reScreenshot",
+                settings.repeat_screenshot_hotkey.trim(),
+            ),
+            (
+                "action.copy",
+                if settings.copy_result {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+            (
+                "action.popMainWindow",
+                if settings.pop_main_window {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+            (
+                "other.simpleNotificationType",
+                settings.notification_type.as_str(),
+            ),
+        ],
+    );
+    if content == original {
+        return Ok(false);
+    }
+    fs::write(&path, content).map_err(|error| format!("写入 OCR 设置失败：{error}"))?;
+    Ok(true)
+}
+
+fn update_ini_section_values(
+    content: &str,
+    section: &str,
+    values: &[(&str, &str)],
+    replace_existing: bool,
+) -> String {
     let normalized = content.replace("\r\n", "\n");
     let mut lines: Vec<String> = normalized.lines().map(str::to_string).collect();
     let header = format!("[{section}]");
@@ -499,7 +778,9 @@ fn upsert_ini_section_values(content: &str, section: &str, values: &[(&str, &str
         });
         let setting = format!("{key}={value}");
         if let Some(index) = existing {
-            lines[index] = setting;
+            if replace_existing {
+                lines[index] = setting;
+            }
         } else {
             lines.insert(end, setting);
             end += 1;
@@ -509,6 +790,14 @@ fn upsert_ini_section_values(content: &str, section: &str, values: &[(&str, &str
     let mut output = lines.join("\n");
     output.push('\n');
     output
+}
+
+fn upsert_ini_section_values(content: &str, section: &str, values: &[(&str, &str)]) -> String {
+    update_ini_section_values(content, section, values, true)
+}
+
+fn ensure_ini_section_values(content: &str, section: &str, values: &[(&str, &str)]) -> String {
+    update_ini_section_values(content, section, values, false)
 }
 
 fn ensure_service(runtime: &Path) -> Result<(), String> {
@@ -528,6 +817,22 @@ fn ensure_service(runtime: &Path) -> Result<(), String> {
     }
     kill_private_process_tree(runtime, spawned_pid);
     Err("Umi-OCR 服务未在 20 秒内启动，请打开 OCR 设置检查运行状态。".to_string())
+}
+
+fn restart_private_service(runtime: &Path, listener_pid: Option<u32>) -> Result<(), String> {
+    if let Some(listener_pid) = listener_pid {
+        kill_private_process_tree(runtime, listener_pid);
+        for _ in 0..40 {
+            if netstat_listener_pid(UMI_PORT)?.is_none() {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        if netstat_listener_pid(UMI_PORT)?.is_some() {
+            return Err("OCR 服务未能停止，设置已保存，请重启 Financial Tool 后生效。".to_string());
+        }
+    }
+    ensure_service(runtime)
 }
 
 fn probe_private_service(runtime: &Path) -> Result<Option<u32>, String> {
@@ -875,6 +1180,77 @@ mod tests {
         assert!(updated.contains("[ScreenshotOCR]"));
         assert!(updated.contains("hotkey.screenshot=alt+s"));
         assert!(updated.contains("action.copy=true"));
+    }
+
+    #[test]
+    fn preserves_existing_user_settings_when_ensuring_runtime_defaults() {
+        let original = "[ScreenshotOCR]\nhotkey.screenshot=ctrl+alt+s\naction.copy=false\n";
+        let updated = ensure_ini_section_values(
+            original,
+            "ScreenshotOCR",
+            &[
+                ("hotkey.screenshot", "alt+s"),
+                ("action.copy", "true"),
+                ("hotkey.paste", "win+alt+v"),
+            ],
+        );
+
+        assert!(updated.contains("hotkey.screenshot=ctrl+alt+s"));
+        assert!(updated.contains("action.copy=false"));
+        assert!(updated.contains("hotkey.paste=win+alt+v"));
+    }
+
+    #[test]
+    fn preserves_screenshot_preferences_but_restores_required_service_settings() {
+        let runtime = std::env::temp_dir().join(format!(
+            "financial-tool-runtime-settings-{}",
+            std::process::id()
+        ));
+        let data_dir = runtime.join("UmiOCR-data");
+        fs::create_dir_all(&data_dir).unwrap();
+        let settings_path = data_dir.join(".settings");
+        fs::write(
+            &settings_path,
+            "[Global]\nserver.port=12241\nocr.api=other-engine\n\n[ScreenshotOCR]\nhotkey.screenshot=ctrl+alt+s\naction.copy=false\n",
+        )
+        .unwrap();
+
+        ensure_runtime_settings(&runtime).unwrap();
+        let updated = fs::read_to_string(&settings_path).unwrap();
+
+        assert!(updated.contains("server.port=12240"));
+        assert!(updated.contains("ocr.api=win7_x64_RapidOCR-json"));
+        assert!(updated.contains("hotkey.screenshot=ctrl+alt+s"));
+        assert!(updated.contains("action.copy=false"));
+
+        let _ = fs::remove_dir_all(&runtime);
+    }
+
+    #[test]
+    fn parses_the_screenshot_ocr_profile_for_the_embedded_settings_page() {
+        let settings = parse_ocr_settings(
+            "[ScreenshotOCR]\nocr.angle=true\nocr.maxSideLen=4096\ntbpu.parser=single_line\nhotkey.screenshot=ctrl+alt+s\nhotkey.paste=win+alt+v\nhotkey.reScreenshot=alt+r\naction.copy=false\naction.popMainWindow=true\nother.simpleNotificationType=onlyInside\n",
+        );
+
+        assert_eq!(settings.language, "简体中文");
+        assert_eq!(settings.max_side_len, 4096);
+        assert!(settings.correct_text_direction);
+        assert_eq!(settings.text_layout, "single_line");
+        assert_eq!(settings.screenshot_hotkey, "ctrl+alt+s");
+        assert_eq!(settings.repeat_screenshot_hotkey, "alt+r");
+        assert!(!settings.copy_result);
+        assert!(settings.pop_main_window);
+        assert_eq!(settings.notification_type, "onlyInside");
+    }
+
+    #[test]
+    fn rejects_invalid_embedded_settings() {
+        let invalid = OcrSettings {
+            max_side_len: 128,
+            ..OcrSettings::default()
+        };
+
+        assert!(validate_ocr_settings(&invalid).is_err());
     }
 
     #[test]

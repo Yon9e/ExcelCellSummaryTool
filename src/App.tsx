@@ -22,16 +22,18 @@ import type {
   CurrentFileEvent,
   FilterMode,
   LogEvent,
+  OcrTabKey,
   OcrRuntimeStatus,
-  PageKey,
   ProgressEvent,
   Rule,
   Scheme,
   SheetChoice,
   SheetConflict,
   SheetMode,
+  SummaryTabKey,
   SummaryRequest,
   SummaryResult,
+  WorkspaceKey,
 } from "./types";
 import { getBrandSubtitle } from "./brandContent";
 import { getFileDisplayName } from "./fileDisplay";
@@ -39,11 +41,13 @@ import { getRuleRowKey } from "./ruleKeys";
 import { reorderRules } from "./ruleOrdering";
 import { getSchemePage } from "./schemePaging";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
+import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import { SupportWindowContent } from "./SupportWindowContent";
 import { AboutPage } from "./AboutPage";
 import { OcrPage } from "./OcrPage";
+import { OcrSettingsPage } from "./OcrSettingsPage";
 import { RuleImageImporter } from "./RuleImageImporter";
-import { pages } from "./navigation";
+import { ocrTabs, summaryTabs, workspacePages } from "./navigation";
 import {
   getSupportViewFromSearch,
   getSupportWindowConfig,
@@ -95,9 +99,18 @@ function buildSheetChoices(
 
 const brandSubtitle = getBrandSubtitle();
 const supportView = getSupportViewFromSearch(window.location.search);
+const browserPreview = !isTauriRuntime();
 let ocrStartupPromise: Promise<OcrRuntimeStatus> | null = null;
 
 function initializeOcrAtStartup(): Promise<OcrRuntimeStatus> {
+  if (browserPreview) {
+    return Promise.resolve({
+      version: "浏览器预览",
+      bundled: false,
+      prepared: false,
+      message: "浏览器预览不加载本地 Umi-OCR 组件。",
+    });
+  }
   if (!ocrStartupPromise) {
     ocrStartupPromise = invoke<OcrRuntimeStatus>("prepare_ocr_runtime");
   }
@@ -109,7 +122,9 @@ function App() {
     return <SupportWindowContent view={supportView} />;
   }
 
-  const [activePage, setActivePage] = useState<PageKey>("source");
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>("summary");
+  const [activeSummaryTab, setActiveSummaryTab] = useState<SummaryTabKey>("source");
+  const [activeOcrTab, setActiveOcrTab] = useState<OcrTabKey>("capture");
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [selectedScheme, setSelectedScheme] = useState("");
   const [schemeName, setSchemeName] = useState("");
@@ -133,7 +148,17 @@ function App() {
   const [schemeQuery, setSchemeQuery] = useState("");
   const [schemePage, setSchemePage] = useState(1);
 
-  const activeTitle = pages.find((page) => page.key === activePage)?.label ?? "";
+  const activeTitle = activeWorkspace === "summary"
+    ? summaryTabs.find((tab) => tab.key === activeSummaryTab)?.label ?? ""
+    : activeWorkspace === "ocr"
+      ? ocrTabs.find((tab) => tab.key === activeOcrTab)?.label ?? ""
+      : workspacePages.find((page) => page.key === activeWorkspace)?.label ?? "";
+  const activeKicker = activeWorkspace === "summary"
+    ? "汇总功能"
+    : activeWorkspace === "ocr"
+      ? "OCR 工具"
+      : "应用信息";
+  const contentKey = `${activeWorkspace}-${activeWorkspace === "summary" ? activeSummaryTab : activeWorkspace === "ocr" ? activeOcrTab : "about"}`;
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
   const selectedSchemeData = useMemo(
     () => schemes.find((scheme) => scheme.name === selectedScheme),
@@ -146,6 +171,12 @@ function App() {
 
   useEffect(() => {
     let active = true;
+    if (browserPreview) {
+      appendLog("INFO", browserPreviewMessage);
+      return () => {
+        active = false;
+      };
+    }
     void refreshSchemes();
     void initializeOcrAtStartup().catch((error) => {
       if (active) {
@@ -179,6 +210,9 @@ function App() {
   }, [schemePage, schemePageData.currentPage]);
 
   async function refreshSchemes() {
+    if (browserPreview) {
+      return;
+    }
     try {
       const loaded = await invoke<Scheme[]>("load_schemes");
       setSchemes(loaded);
@@ -204,6 +238,19 @@ function App() {
   }
 
   async function saveCurrentScheme() {
+    if (browserPreview) {
+      const scheme = collectScheme();
+      if (!scheme.name.trim()) {
+        window.alert("请先输入方案名称后再保存预览方案。");
+        return;
+      }
+      setSchemes((items) => [...items.filter((item) => item.name !== scheme.name), scheme]);
+      setSelectedScheme(scheme.name);
+      setSchemeQuery("");
+      setSchemePage(1);
+      appendLog("INFO", `浏览器预览已暂存方案：${scheme.name}`);
+      return;
+    }
     try {
       await invoke("save_scheme", { scheme: collectScheme() });
       appendLog("DONE", `方案已保存：${schemeName}`);
@@ -238,6 +285,12 @@ function App() {
     if (!selectedScheme) {
       return;
     }
+    if (browserPreview) {
+      setSchemes((items) => items.filter((scheme) => scheme.name !== selectedScheme));
+      setSelectedScheme("");
+      appendLog("INFO", `浏览器预览已移除方案：${selectedScheme}`);
+      return;
+    }
     const ok = await confirm(`确认删除方案“${selectedScheme}”？`, {
       title: "删除方案",
       kind: "warning",
@@ -252,6 +305,10 @@ function App() {
   }
 
   async function browseTargetFolder() {
+    if (browserPreview) {
+      window.alert(browserPreviewMessage);
+      return;
+    }
     const selected = await open({
       directory: true,
       multiple: false,
@@ -263,6 +320,10 @@ function App() {
   }
 
   async function browseOutputFile() {
+    if (browserPreview) {
+      window.alert(browserPreviewMessage);
+      return;
+    }
     const selected = await save({
       title: "选择汇总结果输出路径",
       defaultPath: "汇总结果.xlsx",
@@ -274,6 +335,10 @@ function App() {
   }
 
   async function openConfiguredOutputFile() {
+    if (browserPreview) {
+      window.alert(browserPreviewMessage);
+      return;
+    }
     if (!outputFile) {
       return;
     }
@@ -349,6 +414,10 @@ function App() {
   }
 
   async function runSummary() {
+    if (browserPreview) {
+      window.alert(browserPreviewMessage);
+      return;
+    }
     if (running) {
       return;
     }
@@ -462,6 +531,10 @@ function App() {
 
   async function openHelpWindow() {
     const config = getSupportWindowConfig("help");
+    if (browserPreview) {
+      window.open(config.url, "_blank", "noopener,noreferrer");
+      return;
+    }
     const existing = await WebviewWindow.getByLabel(config.label);
     if (existing) {
       await existing.show();
@@ -489,13 +562,13 @@ function App() {
           </div>
         </div>
         <nav className="nav-list">
-          {pages.map((page) => {
+          {workspacePages.map((page) => {
             const Icon = page.icon;
             return (
               <button
                 key={page.key}
-                className={activePage === page.key ? "nav-item active" : "nav-item"}
-                onClick={() => setActivePage(page.key)}
+                className={activeWorkspace === page.key ? "nav-item active" : "nav-item"}
+                onClick={() => setActiveWorkspace(page.key)}
               >
                 <Icon size={22} />
                 <span>{page.label}</span>
@@ -524,13 +597,20 @@ function App() {
           </div>
         </header>
 
-        <section className="content-panel" key={activePage}>
+        {browserPreview && (
+          <div className="browser-preview-banner" role="status">
+            <Info size={18} />
+            <span>{browserPreviewMessage}</span>
+          </div>
+        )}
+
+        <section className="content-panel" key={activeWorkspace}>
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">当前页面</p>
+              <p className="eyebrow">{activeKicker}</p>
               <h3>{activeTitle}</h3>
             </div>
-            {activePage === "rules" && (
+            {activeWorkspace === "summary" && activeSummaryTab === "rules" && (
               <div className="toolbar">
                 <button className="soft-button" onClick={() => setShowRuleImageImporter(true)}>
                   <ScanSearch size={18} />
@@ -552,7 +632,50 @@ function App() {
             )}
           </div>
 
-          {activePage === "scheme" && (
+          {activeWorkspace === "summary" && (
+            <nav className="workspace-tabs" role="tablist" aria-label="汇总功能标签">
+              {summaryTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    type="button"
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={activeSummaryTab === tab.key}
+                    className={activeSummaryTab === tab.key ? "workspace-tab active" : "workspace-tab"}
+                    onClick={() => setActiveSummaryTab(tab.key)}
+                  >
+                    <Icon size={18} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
+          {activeWorkspace === "ocr" && (
+            <nav className="workspace-tabs" role="tablist" aria-label="截图识字标签">
+              {ocrTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    type="button"
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={activeOcrTab === tab.key}
+                    className={activeOcrTab === tab.key ? "workspace-tab active" : "workspace-tab"}
+                    onClick={() => setActiveOcrTab(tab.key)}
+                  >
+                    <Icon size={18} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
+          <div className="feature-content" key={contentKey}>
+            {activeWorkspace === "summary" && activeSummaryTab === "scheme" && (
             <div className="scheme-page">
               <div className="scheme-editor">
                 <label>
@@ -667,7 +790,7 @@ function App() {
             </div>
           )}
 
-          {activePage === "source" && (
+            {activeWorkspace === "summary" && activeSummaryTab === "source" && (
             <div className="form-grid">
               <label className="wide-field">
                 <span>目标文件夹</span>
@@ -726,7 +849,7 @@ function App() {
             </div>
           )}
 
-          {activePage === "rules" && (
+            {activeWorkspace === "summary" && activeSummaryTab === "rules" && (
             <div className="table-wrap">
               <table>
                 <thead>
@@ -822,7 +945,7 @@ function App() {
             </div>
           )}
 
-          {activePage === "run" && (
+            {activeWorkspace === "summary" && activeSummaryTab === "run" && (
             <div className="run-layout">
               <div className="run-actions">
                 <button className="primary-button" disabled={running} onClick={runSummary}>
@@ -845,9 +968,12 @@ function App() {
             </div>
           )}
 
-          {activePage === "ocr" && <OcrPage onLog={appendLog} />}
+            {activeWorkspace === "ocr" && activeOcrTab === "capture" && <OcrPage onLog={appendLog} />}
 
-          {activePage === "about" && <AboutPage />}
+            {activeWorkspace === "ocr" && activeOcrTab === "settings" && <OcrSettingsPage onLog={appendLog} />}
+
+            {activeWorkspace === "about" && <AboutPage />}
+          </div>
         </section>
       </main>
 

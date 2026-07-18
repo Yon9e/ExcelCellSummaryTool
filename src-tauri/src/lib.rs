@@ -19,6 +19,8 @@ pub fn run() {
             path_exists,
             get_ocr_runtime_status,
             prepare_ocr_runtime,
+            get_ocr_settings,
+            save_ocr_settings,
             read_image_file,
             read_clipboard_image,
             get_clipboard_sequence_number,
@@ -81,6 +83,23 @@ async fn prepare_ocr_runtime(app: tauri::AppHandle) -> Result<ocr::OcrRuntimeSta
     tauri::async_runtime::spawn_blocking(move || ocr::initialize_runtime(&app))
         .await
         .map_err(|error| format!("OCR 初始化任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn get_ocr_settings(app: tauri::AppHandle) -> Result<ocr::OcrSettings, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::get_settings(&app))
+        .await
+        .map_err(|error| format!("读取 OCR 设置任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn save_ocr_settings(
+    app: tauri::AppHandle,
+    settings: ocr::OcrSettings,
+) -> Result<ocr::OcrSettings, String> {
+    tauri::async_runtime::spawn_blocking(move || ocr::save_settings(&app, settings))
+        .await
+        .map_err(|error| format!("保存 OCR 设置任务失败：{error}"))?
 }
 
 #[tauri::command]

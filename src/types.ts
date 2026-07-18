@@ -1,6 +1,8 @@
 export type SheetMode = "exact" | "contains" | "index";
 export type FilterMode = "include" | "exclude";
-export type PageKey = "scheme" | "source" | "rules" | "ocr" | "run" | "about";
+export type WorkspaceKey = "summary" | "ocr" | "about";
+export type SummaryTabKey = "scheme" | "source" | "rules" | "run";
+export type OcrTabKey = "capture" | "settings";
 
 export interface Rule {
   output_column: string;
@@ -67,6 +69,19 @@ export interface OcrRuntimeStatus {
   bundled: boolean;
   prepared: boolean;
   message: string;
+}
+
+export interface OcrSettings {
+  language: string;
+  max_side_len: number;
+  correct_text_direction: boolean;
+  text_layout: string;
+  screenshot_hotkey: string;
+  paste_hotkey: string;
+  repeat_screenshot_hotkey: string;
+  copy_result: boolean;
+  pop_main_window: boolean;
+  notification_type: string;
 }
 
 export interface ImagePayload {

@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Check, Clipboard, FileImage, ScanLine, Settings, Sparkles } from "lucide-react";
+import { Check, Clipboard, FileImage, ScanLine, Sparkles } from "lucide-react";
+import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import type { ImagePayload, OcrImageResult, OcrRuntimeStatus } from "./types";
 
 interface OcrPageProps {
   onLog: (level: "INFO" | "WARN" | "ERROR" | "DONE", message: string) => void;
 }
+
+const browserPreview = !isTauriRuntime();
 
 export function OcrPage({ onLog }: OcrPageProps) {
   const [status, setStatus] = useState<OcrRuntimeStatus | null>(null);
@@ -16,6 +19,15 @@ export function OcrPage({ onLog }: OcrPageProps) {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
+    if (browserPreview) {
+      setStatus({
+        version: "浏览器预览",
+        bundled: false,
+        prepared: false,
+        message: "浏览器预览不加载本地 Umi-OCR 组件。",
+      });
+      return;
+    }
     void refreshStatus();
   }, []);
 
@@ -28,6 +40,10 @@ export function OcrPage({ onLog }: OcrPageProps) {
   }
 
   async function initializeRuntime() {
+    if (browserPreview) {
+      setNotice(browserPreviewMessage);
+      return;
+    }
     setBusy(true);
     setNotice("正在初始化 OCR 组件，首次使用需要复制本地运行文件...");
     try {
@@ -44,6 +60,10 @@ export function OcrPage({ onLog }: OcrPageProps) {
   }
 
   async function captureAndCopy() {
+    if (browserPreview) {
+      setNotice(browserPreviewMessage);
+      return;
+    }
     setBusy(true);
     setNotice("正在打开截图工具...");
     try {
@@ -60,6 +80,10 @@ export function OcrPage({ onLog }: OcrPageProps) {
   }
 
   async function recognizeImage() {
+    if (browserPreview) {
+      setNotice(browserPreviewMessage);
+      return;
+    }
     const selected = await open({
       multiple: false,
       title: "选择需要识别的图片",
@@ -122,21 +146,6 @@ export function OcrPage({ onLog }: OcrPageProps) {
     }
   }
 
-  async function openSettings() {
-    setBusy(true);
-    try {
-      const text = await invoke<string>("show_ocr_settings");
-      setNotice(text);
-      onLog("INFO", text);
-      await refreshStatus();
-    } catch (error) {
-      setNotice(String(error));
-      onLog("ERROR", String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="ocr-page">
       <section className="ocr-command-band">
@@ -153,9 +162,6 @@ export function OcrPage({ onLog }: OcrPageProps) {
           <button className="soft-button" disabled={busy || !status?.bundled} onClick={recognizeImage}>
             <FileImage size={19} />
             识别图片
-          </button>
-          <button className="icon-button" disabled={busy || !status?.bundled} onClick={openSettings} title="OCR 设置与插件">
-            <Settings size={20} />
           </button>
         </div>
       </section>

@@ -1,10 +1,14 @@
 import { useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isTauriRuntime } from "./browserPreview";
 import { getHelpManual } from "./helpManual";
 import type { SupportView } from "./supportWindows";
 
 export function SupportWindowContent({ view }: { view: Exclude<SupportView, "main"> }) {
   useEffect(() => {
+    if (!isTauriRuntime()) {
+      return;
+    }
     const window = getCurrentWindow();
     void window.show().then(() => window.setFocus());
   }, []);

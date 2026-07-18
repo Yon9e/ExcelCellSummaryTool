@@ -8,6 +8,7 @@ import {
   markClipboardSuccess,
   shouldAttemptClipboardRead,
 } from "./clipboardPolling";
+import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import {
   detectAnnotationRectangles,
   locateRuleCandidates,
@@ -27,6 +28,8 @@ interface AnalysisResult {
   annotations: AnnotationRectangles;
   previewUrl: string;
 }
+
+const browserPreview = !isTauriRuntime();
 
 export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps) {
   const [image, setImage] = useState<ImagePayload | null>(null);
@@ -77,6 +80,10 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   }, []);
 
   useEffect(() => {
+    if (browserPreview) {
+      setStatus("浏览器预览不会读取系统剪贴板，可在此核对图片生成规则页面布局。");
+      return;
+    }
     let stopped = false;
 
     async function inspectClipboard(initial = false) {
@@ -123,6 +130,10 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   }, [analyzePayload]);
 
   async function selectAndAnalyze() {
+    if (browserPreview) {
+      setError(browserPreviewMessage);
+      return;
+    }
     let selected: Awaited<ReturnType<typeof open>> = null;
     selectingFileRef.current = true;
     try {
@@ -161,6 +172,10 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   }
 
   async function readClipboardAndAnalyze() {
+    if (browserPreview) {
+      setError(browserPreviewMessage);
+      return;
+    }
     setError("");
     busyRef.current = true;
     setBusy(true);

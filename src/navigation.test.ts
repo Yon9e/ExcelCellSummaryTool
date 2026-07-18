@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { pages } from "./navigation";
+import { ocrTabs, summaryTabs, workspacePages } from "./navigation";
 
 describe("navigation", () => {
-  it("keeps about as a sidebar page instead of a support window", () => {
-    expect(pages.map((page) => page.key)).toContain("about");
-    expect(pages.find((page) => page.key === "about")?.label).toBe("关于");
+  it("keeps only summary, OCR, and about in the sidebar", () => {
+    expect(workspacePages.map((page) => page.key)).toEqual(["summary", "ocr", "about"]);
+    expect(workspacePages.find((page) => page.key === "about")?.label).toBe("关于");
   });
 
-  it("exposes OCR as a first-class financial tool page", () => {
-    expect(pages.find((page) => page.key === "ocr")?.label).toBe("截图识字");
+  it("groups the previous summary pages into top tabs", () => {
+    expect(summaryTabs.map((tab) => tab.key)).toEqual(["scheme", "source", "rules", "run"]);
+  });
+
+  it("exposes capture and Umi-OCR settings as OCR tabs", () => {
+    expect(ocrTabs.map((tab) => tab.key)).toEqual(["capture", "settings"]);
+    expect(ocrTabs.find((tab) => tab.key === "settings")?.label).toBe("Umi-OCR 设置");
   });
 });
