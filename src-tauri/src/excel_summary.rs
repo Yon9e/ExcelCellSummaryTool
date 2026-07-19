@@ -160,12 +160,11 @@ fn normalize_output_path(output_file: &str) -> Result<PathBuf, String> {
     if output_path.extension().is_none() {
         output_path.set_extension("xlsx");
     }
-    if output_path
+    if !output_path
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or_default()
-        .to_ascii_lowercase()
-        != "xlsx"
+        .eq_ignore_ascii_case("xlsx")
     {
         output_path.set_extension("xlsx");
     }
