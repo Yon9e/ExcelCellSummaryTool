@@ -197,7 +197,7 @@ fn write_headers(worksheet: &mut Worksheet, rules: &[Rule]) -> Result<(), String
         .set_bold()
         .set_font_color(Color::RGB(0x1F2937))
         .set_background_color(Color::RGB(0xE8EEF7));
-    let mut headers = vec!["文件名".to_string(), "文件路径".to_string()];
+    let mut headers = vec!["文件名".to_string()];
     headers.extend(rules.iter().map(|rule| rule.output_column.clone()));
     for (column, header) in headers.iter().enumerate() {
         worksheet
@@ -225,18 +225,20 @@ where
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
+    let file_link = source_file_hyperlink(file_path);
     worksheet
-        .write_string(row, 0, file_name)
-        .map_err(|error| error.to_string())?;
-    worksheet
-        .write_string(row, 1, file_path.to_string_lossy().as_ref())
+        .write_url_with_text(row, 0, file_link.as_str(), file_name)
         .map_err(|error| error.to_string())?;
 
     let values = read_file_values(file_path, rules, sheet_choices, log);
     for (index, value) in values.into_iter().enumerate() {
-        write_cell_value(worksheet, row, (index + 2) as u16, value)?;
+        write_cell_value(worksheet, row, (index + 1) as u16, value)?;
     }
     Ok(())
+}
+
+fn source_file_hyperlink(file_path: &Path) -> String {
+    format!("file:///{}", file_path.to_string_lossy())
 }
 
 fn read_file_values<FLog>(
@@ -431,6 +433,14 @@ mod tests {
     use crate::models::{FILTER_MODE_INCLUDE, SHEET_MODE_CONTAINS, SHEET_MODE_EXACT};
 
     #[test]
+    fn creates_hyperlink_to_source_workbook() {
+        assert_eq!(
+            source_file_hyperlink(Path::new(r"D:\报表\北京报表.xlsx")),
+            r"file:///D:\报表\北京报表.xlsx"
+        );
+    }
+
+    #[test]
     fn summarizes_xlsx_cells_to_output_workbook() {
         let root =
             std::env::temp_dir().join(format!("excel-summary-e2e-test-{}", std::process::id()));
@@ -468,10 +478,15 @@ mod tests {
         let mut output_workbook = Xlsx::new(BufReader::new(output_file)).unwrap();
         let range = output_workbook.worksheet_range("汇总结果").unwrap();
         assert_eq!(
-            range.get_value((0, 2)),
+            range.get_value((0, 0)),
+            Some(&Data::String("文件名".to_string()))
+        );
+        assert_eq!(
+            range.get_value((0, 1)),
             Some(&Data::String("货币资金".to_string()))
         );
-        assert_eq!(range.get_value((1, 2)), Some(&Data::Float(123.45)));
+        assert_eq!(range.get_value((0, 2)), None);
+        assert_eq!(range.get_value((1, 1)), Some(&Data::Float(123.45)));
 
         let _ = fs::remove_dir_all(&root);
     }

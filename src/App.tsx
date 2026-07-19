@@ -334,29 +334,6 @@ function App() {
     }
   }
 
-  async function openConfiguredOutputFile() {
-    if (browserPreview) {
-      window.alert(browserPreviewMessage);
-      return;
-    }
-    if (!outputFile) {
-      return;
-    }
-    try {
-      const exists = await invoke<boolean>("path_exists", { path: outputFile });
-      if (!exists) {
-        await message("文件尚未生成，汇总完成后即可点击打开。", {
-          title: "输出文件不存在",
-          kind: "info",
-        });
-        return;
-      }
-      await invoke("open_output_file", { path: outputFile });
-    } catch (error) {
-      await message(String(error), { title: "打开输出文件失败", kind: "error" });
-    }
-  }
-
   function updateRule(index: number, patch: Partial<Rule>) {
     setRules((items) =>
       items.map((rule, ruleIndex) =>
@@ -810,15 +787,9 @@ function App() {
                 <div className="input-action">
                   <div className="output-file-field">
                     {outputFile ? (
-                      <button
-                        type="button"
-                        className="output-file-link"
-                        onClick={() => void openConfiguredOutputFile()}
-                        title="打开输出文件"
-                      >
-                        <FileSpreadsheet size={19} />
-                        <span>{getFileDisplayName(outputFile)}</span>
-                      </button>
+                      <span className="output-file-name" title={outputFile}>
+                        {getFileDisplayName(outputFile)}
+                      </span>
                     ) : (
                       <span className="output-file-placeholder">尚未选择输出文件</span>
                     )}

@@ -637,29 +637,13 @@ input::placeholder {
   background: rgba(11, 22, 38, 0.74);
 }
 
-.output-file-link {
-  display: inline-flex;
+.output-file-name {
+  display: block;
   min-width: 0;
-  align-items: center;
-  gap: 9px;
-  padding: 4px 0;
   overflow: hidden;
-  border: 0;
-  color: #69b3ff;
-  background: transparent;
+  color: #dce7f8;
   font-size: 16px;
   font-weight: 700;
-  text-align: left;
-}
-
-.output-file-link:hover {
-  color: #9bceff;
-  text-decoration: underline;
-}
-
-.output-file-link span {
-  min-width: 0;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
