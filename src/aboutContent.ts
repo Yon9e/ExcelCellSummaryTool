@@ -21,7 +21,7 @@ export function getAboutContent(): AboutContent {
       {
         title: "开源仓库",
         description: "github.com/Yon9e/ExcelCellSummaryTool",
-        detail: "MIT License",
+        detail: "GNU GPL v3.0",
       },
       {
         title: "意见反馈",
@@ -31,7 +31,7 @@ export function getAboutContent(): AboutContent {
       {
         title: "更新记录",
         description: "v0.2.2",
-        detail: "修复 Excel 填充色和边缘噪声导致标注蓝框漏检的问题",
+        detail: "支持从 Excel 截图重建单元格表格，并通过点击或拖动选择生成候选规则",
       },
     ],
   };

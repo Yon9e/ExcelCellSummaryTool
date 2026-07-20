@@ -20,6 +20,8 @@ const MAX_IMAGE_BYTES: u64 = 30 * 1024 * 1024;
 const MAX_IMAGE_PIXELS: usize = 16_000_000;
 const OCR_LANGUAGE_SIMPLIFIED_CHINESE: &str = "简体中文";
 const OCR_LANGUAGE_SIMPLIFIED_CHINESE_ENCODED: &str = r"\x7b80\x4f53\x4e2d\x6587";
+const OCR_LANGUAGE_ENGLISH: &str = "English";
+const OCR_SUPPORTED_LANGUAGES: &[&str] = &[OCR_LANGUAGE_SIMPLIFIED_CHINESE, OCR_LANGUAGE_ENGLISH];
 const OCR_TEXT_LAYOUTS: &[&str] = &[
     "multi_para",
     "multi_line",
@@ -575,9 +577,13 @@ fn parse_ocr_settings(content: &str) -> OcrSettings {
         .and_then(|value| value.trim().parse::<u32>().ok())
         .filter(|value| (256..=24_000).contains(value))
         .unwrap_or(defaults.max_side_len);
+    let language = parse_ocr_language(
+        read_ini_value(content, "ScreenshotOCR", "ocr.language"),
+        &defaults.language,
+    );
 
     OcrSettings {
-        language: OCR_LANGUAGE_SIMPLIFIED_CHINESE.to_string(),
+        language,
         max_side_len,
         correct_text_direction: read_ini_bool(
             read_ini_value(content, "ScreenshotOCR", "ocr.angle"),
@@ -611,6 +617,28 @@ fn parse_ocr_settings(content: &str) -> OcrSettings {
             defaults.pop_main_window,
         ),
         notification_type,
+    }
+}
+
+fn parse_ocr_language(value: Option<&str>, default: &str) -> String {
+    let value = value.map(str::trim).unwrap_or_default();
+    if value == OCR_LANGUAGE_SIMPLIFIED_CHINESE || value == OCR_LANGUAGE_SIMPLIFIED_CHINESE_ENCODED
+    {
+        OCR_LANGUAGE_SIMPLIFIED_CHINESE.to_string()
+    } else if value.eq_ignore_ascii_case(OCR_LANGUAGE_ENGLISH) {
+        OCR_LANGUAGE_ENGLISH.to_string()
+    } else {
+        default.to_string()
+    }
+}
+
+fn ocr_language_setting_value(language: &str) -> Option<&'static str> {
+    if language == OCR_LANGUAGE_SIMPLIFIED_CHINESE {
+        Some(OCR_LANGUAGE_SIMPLIFIED_CHINESE_ENCODED)
+    } else if language.eq_ignore_ascii_case(OCR_LANGUAGE_ENGLISH) {
+        Some(OCR_LANGUAGE_ENGLISH)
+    } else {
+        None
     }
 }
 
@@ -649,8 +677,11 @@ fn read_ini_text(content: &str, section: &str, key: &str, default: &str) -> Stri
 }
 
 fn validate_ocr_settings(settings: &OcrSettings) -> Result<(), String> {
-    if settings.language != OCR_LANGUAGE_SIMPLIFIED_CHINESE {
-        return Err("当前内置 RapidOCR 仅支持简体中文模型库。".to_string());
+    if !OCR_SUPPORTED_LANGUAGES
+        .iter()
+        .any(|language| settings.language.eq_ignore_ascii_case(language))
+    {
+        return Err("OCR 语言/模型库无效，仅支持简体中文和英语（English）。".to_string());
     }
     if !(256..=24_000).contains(&settings.max_side_len) {
         return Err("限制图像边长应在 256 到 24000 之间。".to_string());
@@ -689,6 +720,8 @@ fn write_ocr_settings(runtime: &Path, settings: &OcrSettings) -> Result<bool, St
     let original =
         fs::read_to_string(&path).map_err(|error| format!("读取 OCR 设置失败：{error}"))?;
     let max_side_len = settings.max_side_len.to_string();
+    let language = ocr_language_setting_value(&settings.language)
+        .ok_or_else(|| "OCR 语言/模型库无效，仅支持简体中文和英语（English）。".to_string())?;
     let content = upsert_ini_section_values(
         &original,
         "ScreenshotOCR",
@@ -701,7 +734,7 @@ fn write_ocr_settings(runtime: &Path, settings: &OcrSettings) -> Result<bool, St
                     "false"
                 },
             ),
-            ("ocr.language", OCR_LANGUAGE_SIMPLIFIED_CHINESE_ENCODED),
+            ("ocr.language", language),
             ("ocr.maxSideLen", &max_side_len),
             ("tbpu.parser", settings.text_layout.as_str()),
             ("hotkey.screenshot", settings.screenshot_hotkey.trim()),
@@ -1241,6 +1274,32 @@ mod tests {
         assert!(!settings.copy_result);
         assert!(settings.pop_main_window);
         assert_eq!(settings.notification_type, "onlyInside");
+    }
+
+    #[test]
+    fn supports_english_rapidocr_model_settings() {
+        let parsed = parse_ocr_settings("[ScreenshotOCR]\nocr.language=English\n");
+        assert_eq!(parsed.language, "English");
+
+        let settings = OcrSettings {
+            language: "English".to_string(),
+            ..OcrSettings::default()
+        };
+        assert!(validate_ocr_settings(&settings).is_ok());
+
+        let runtime = std::env::temp_dir().join(format!(
+            "financial-tool-english-ocr-settings-{}",
+            std::process::id()
+        ));
+        let data_dir = runtime.join("UmiOCR-data");
+        fs::create_dir_all(&data_dir).unwrap();
+        fs::write(data_dir.join(".settings"), "[ScreenshotOCR]\n").unwrap();
+
+        assert!(write_ocr_settings(&runtime, &settings).unwrap());
+        let saved = fs::read_to_string(data_dir.join(".settings")).unwrap();
+        assert!(saved.contains("ocr.language=English"));
+
+        fs::remove_dir_all(runtime).unwrap();
     }
 
     #[test]

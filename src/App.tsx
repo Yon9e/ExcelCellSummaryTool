@@ -359,7 +359,7 @@ function App() {
     setRules((items) => [...items, ...importedRules]);
     setSelectedRuleIndex(rules.length);
     setShowRuleImageImporter(false);
-    appendLog("DONE", `已从标注截图追加 ${importedRules.length} 条规则。`);
+    appendLog("DONE", `已从 Excel 截图追加 ${importedRules.length} 条规则。`);
   }
 
   function startRuleDrag(event: React.DragEvent<HTMLButtonElement>, index: number) {

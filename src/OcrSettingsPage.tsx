@@ -42,6 +42,11 @@ const notificationOptions = [
   ["none", "禁用所有通知"],
 ] as const;
 
+const languageOptions = [
+  ["简体中文", "简体中文"],
+  ["English", "英语（English）"],
+] as const;
+
 function SettingToggle({
   checked,
   label,
@@ -193,7 +198,9 @@ export function OcrSettingsPage({ onLog }: OcrSettingsPageProps) {
                 value={settings.language}
                 onChange={(event) => updateSettings({ language: event.target.value })}
               >
-                <option value="简体中文">简体中文</option>
+                {languageOptions.map(([value, label]) => (
+                  <option value={value} key={value}>{label}</option>
+                ))}
               </select>
             </label>
             <label>

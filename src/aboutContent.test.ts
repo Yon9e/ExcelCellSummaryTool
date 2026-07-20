@@ -9,6 +9,7 @@ describe("getAboutContent", () => {
     expect(about.cards.map((card) => card.title)).toEqual(
       expect.arrayContaining(["主作者", "开源仓库", "意见反馈", "更新记录"]),
     );
+    expect(allText).toContain("GNU GPL v3.0");
     expect(allText).not.toContain("赞助支持");
   });
 });
