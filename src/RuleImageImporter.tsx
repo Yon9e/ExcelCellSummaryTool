@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ClipboardPaste,
   FileImage,
+  Images,
   MapPin,
   Plus,
   ScanSearch,
@@ -22,6 +23,12 @@ import {
   toggleCellSelection,
   type CandidateRuleRow,
 } from "./ruleImageSelection";
+import {
+  appendScreenshotItems,
+  removeScreenshotItem,
+  updateScreenshotItem,
+  type ScreenshotWorkspaceItem,
+} from "./ruleImageWorkspace";
 import {
   reconstructSpreadsheet,
   type DetectedSpreadsheet,
@@ -44,27 +51,41 @@ type SelectionTarget = "output" | "data";
 type RecognizeImage = (imageBase64: string) => Promise<OcrImageResult>;
 
 const browserPreview = !isTauriRuntime();
+let screenshotSequence = 0;
 
 export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps) {
-  const [image, setImage] = useState<ImagePayload | null>(null);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const initialScreenshots = useMemo(
+    () => browserPreview ? createBrowserDemoScreenshots() : [],
+    [],
+  );
+  const [screenshots, setScreenshots] = useState<ScreenshotWorkspaceItem<AnalysisResult>[]>(initialScreenshots);
+  const [activeScreenshotId, setActiveScreenshotId] = useState<string | null>(initialScreenshots[0]?.id ?? null);
   const [candidates, setCandidates] = useState<CandidateRuleRow[]>(() => [
     createCandidateRuleRow(),
     createCandidateRuleRow(),
     createCandidateRuleRow(),
   ]);
   const [activeCandidateId, setActiveCandidateId] = useState(() => candidates[0].id);
-  const [outputSelection, setOutputSelection] = useState<Set<string>>(() => new Set());
-  const [dataSelection, setDataSelection] = useState<Set<string>>(() => new Set());
   const [selectionTarget, setSelectionTarget] = useState<SelectionTarget>("output");
   const [overwrite, setOverwrite] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("contains");
   const [sheetValue, setSheetValue] = useState("");
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("请选择图片文件或读取剪贴板；加载后点击“识别图片”。");
+  const [status, setStatus] = useState(
+    browserPreview
+      ? "已载入两张示例截图；点击缩略图可切换预览表格。"
+      : "可一次添加多张图片或继续读取剪贴板；选择截图后点击“识别图片”。",
+  );
   const [error, setError] = useState("");
   const dragRef = useRef<{ startId: string; target: SelectionTarget; moved: boolean } | null>(null);
 
+  const activeScreenshot = useMemo(
+    () => screenshots.find(({ id }) => id === activeScreenshotId) ?? null,
+    [screenshots, activeScreenshotId],
+  );
+  const analysis = activeScreenshot?.analysis ?? null;
+  const outputSelection = activeScreenshot?.outputSelection ?? new Set<string>();
+  const dataSelection = activeScreenshot?.dataSelection ?? new Set<string>();
   const cells = useMemo(() => analysis?.spreadsheet.cells.flat() ?? [], [analysis]);
   const selectedOutputCells = useMemo(
     () => getSelectedCells(cells, outputSelection),
@@ -75,13 +96,17 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     [cells, dataSelection],
   );
 
-  function loadPayload(payload: ImagePayload, source: string) {
-    setImage(payload);
-    setAnalysis(null);
-    setOutputSelection(new Set());
-    setDataSelection(new Set());
+  function loadPayloads(payloads: ImagePayload[], source: string) {
+    if (!payloads.length) return;
+    const result = appendScreenshotItems(
+      screenshots,
+      payloads,
+      () => `screenshot-${Date.now()}-${screenshotSequence += 1}`,
+    );
+    setScreenshots(result.items);
+    setActiveScreenshotId(result.activeId);
     setError("");
-    setStatus(`已加载${source}，请点击“识别图片”重建可选单元格。`);
+    setStatus(`已追加 ${payloads.length} 张${source}，共 ${result.items.length} 张；请选择截图后点击“识别图片”。`);
   }
 
   async function selectImage() {
@@ -92,14 +117,17 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     setError("");
     try {
       const selected = await open({
-        multiple: false,
-        title: "选择包含 Excel 行号和列字母的截图",
+        multiple: true,
+        title: "选择一张或多张包含 Excel 行号和列字母的截图",
         filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "bmp", "webp", "tif", "tiff"] }],
       });
-      if (typeof selected !== "string") return;
+      const paths = typeof selected === "string" ? [selected] : selected ?? [];
+      if (!paths.length) return;
       setBusy(true);
-      const payload = await invoke<ImagePayload>("read_image_file", { path: selected });
-      loadPayload(payload, "所选图片");
+      const payloads = await Promise.all(
+        paths.map((path) => invoke<ImagePayload>("read_image_file", { path })),
+      );
+      loadPayloads(payloads, "所选图片");
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -120,7 +148,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
         setError("剪贴板中没有图片，请先复制 Excel 截图。");
         return;
       }
-      loadPayload(payload, "剪贴板图片");
+      loadPayloads([payload], "剪贴板图片");
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -129,25 +157,32 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   }
 
   async function recognizeLoadedImage() {
-    if (!image) {
+    if (!activeScreenshot) {
       setError("请先选择图片文件或读取剪贴板图片。 ");
       return;
     }
-    if (browserPreview) {
+    if (browserPreview || activeScreenshot.demo) {
       setError(browserPreviewMessage);
       return;
     }
+    const screenshotId = activeScreenshot.id;
     setBusy(true);
     setError("");
-    setAnalysis(null);
-    setOutputSelection(new Set());
-    setDataSelection(new Set());
+    setScreenshots((items) => updateScreenshotItem(items, screenshotId, (item) => ({
+      ...item,
+      analysis: null,
+      outputSelection: new Set(),
+      dataSelection: new Set(),
+    })));
     setStatus("正在分区识别图片并重建 Excel 单元格...");
     try {
-      const result = await analyzeSpreadsheetImage(image.data_url, (imageBase64) =>
+      const result = await analyzeSpreadsheetImage(activeScreenshot.payload.data_url, (imageBase64) =>
         invoke<OcrImageResult>("ocr_image_base64", { imageBase64 }),
       );
-      setAnalysis(result);
+      setScreenshots((items) => updateScreenshotItem(items, screenshotId, (item) => ({
+        ...item,
+        analysis: result,
+      })));
       const { spreadsheet } = result;
       if (!spreadsheet.cells.length) {
         setError(spreadsheet.warnings.join("；") || "未能重建表格，请确认截图包含 Excel 行号和列字母。");
@@ -163,6 +198,40 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     } finally {
       setBusy(false);
     }
+  }
+
+  function switchScreenshot(id: string) {
+    const screenshot = screenshots.find((item) => item.id === id);
+    if (!screenshot) return;
+    setActiveScreenshotId(id);
+    setError("");
+    setStatus(
+      screenshot.analysis
+        ? `已切换到“${screenshot.name}”，该截图已有可选表格。`
+        : `已切换到“${screenshot.name}”，请点击“识别图片”。`,
+    );
+  }
+
+  function deleteScreenshot(id: string) {
+    const result = removeScreenshotItem(screenshots, id, activeScreenshotId);
+    setScreenshots(result.items);
+    setActiveScreenshotId(result.activeId);
+    setError("");
+    setStatus(result.items.length ? `已移除截图，剩余 ${result.items.length} 张。` : "请添加截图或读取剪贴板图片。");
+  }
+
+  function setActiveSelection(
+    target: SelectionTarget,
+    update: Set<string> | ((selected: Set<string>) => Set<string>),
+  ) {
+    if (!activeScreenshotId) return;
+    setScreenshots((items) => updateScreenshotItem(items, activeScreenshotId, (item) => {
+      const current = target === "output" ? item.outputSelection : item.dataSelection;
+      const next = typeof update === "function" ? update(current) : update;
+      return target === "output"
+        ? { ...item, outputSelection: next }
+        : { ...item, dataSelection: next };
+    }));
   }
 
   function updateCandidate(id: string, patch: Partial<CandidateRuleRow>) {
@@ -239,19 +308,14 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     if (!drag || event.buttons !== 1) return;
     if (drag.startId !== cell.id) drag.moved = true;
     const range = selectCellRange(cells, drag.startId, cell.id);
-    if (drag.target === "output") setOutputSelection(range);
-    else setDataSelection(range);
+    setActiveSelection(drag.target, range);
   }
 
   function handleCellPointerUp(cell: DetectedSpreadsheetCell) {
     const drag = dragRef.current;
     if (!drag) return;
     if (!drag.moved) {
-      if (drag.target === "output") {
-        setOutputSelection((selected) => toggleCellSelection(selected, cell.id));
-      } else {
-        setDataSelection((selected) => toggleCellSelection(selected, cell.id));
-      }
+      setActiveSelection(drag.target, (selected) => toggleCellSelection(selected, cell.id));
     }
     dragRef.current = null;
   }
@@ -301,12 +365,16 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
         <div className="rule-import-controls">
           <div className="rule-import-source-actions">
             <button className="soft-button" disabled={busy} onClick={() => void selectImage()}>
-              <FileImage size={19} />选择图片
+              <Images size={19} />添加图片
             </button>
             <button className="soft-button" disabled={busy} onClick={() => void readClipboard()}>
               <ClipboardPaste size={19} />读取剪贴板
             </button>
-            <button className="primary-button" disabled={busy || !image} onClick={() => void recognizeLoadedImage()}>
+            <button
+              className="primary-button"
+              disabled={busy || !activeScreenshot || Boolean(activeScreenshot.demo)}
+              onClick={() => void recognizeLoadedImage()}
+            >
               <ScanSearch size={19} />{busy ? "识别中" : "识别图片"}
             </button>
           </div>
@@ -331,8 +399,51 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
 
         <div className="rule-import-workspace spreadsheet-import-workspace">
           <section className="spreadsheet-detection-panel">
+            <div className="screenshot-switcher">
+              <div className="screenshot-switcher-heading">
+                <span><Images size={16} />截图</span>
+                <small>{screenshots.length} 张</small>
+              </div>
+              <div className="screenshot-tabs" aria-label="已添加截图">
+                {screenshots.map((screenshot, index) => (
+                  <div
+                    className={`screenshot-tab${screenshot.id === activeScreenshotId ? " active" : ""}`}
+                    key={screenshot.id}
+                  >
+                    <button
+                      className="screenshot-tab-main"
+                      disabled={busy}
+                      onClick={() => switchScreenshot(screenshot.id)}
+                      title={`切换到 ${screenshot.name}`}
+                    >
+                      {screenshot.demo || !screenshot.payload.data_url ? (
+                        <span className="screenshot-thumb demo"><FileImage size={17} /></span>
+                      ) : (
+                        <img className="screenshot-thumb" src={screenshot.payload.data_url} alt="" />
+                      )}
+                      <span className="screenshot-tab-copy">
+                        <strong>{index + 1}. {screenshot.name}</strong>
+                        <small>{screenshot.analysis ? "已生成表格" : "等待识别"}</small>
+                      </span>
+                    </button>
+                    <button
+                      className="screenshot-tab-remove"
+                      disabled={busy}
+                      onClick={() => deleteScreenshot(screenshot.id)}
+                      title={`移除 ${screenshot.name}`}
+                      aria-label={`移除 ${screenshot.name}`}
+                    ><X size={14} /></button>
+                  </div>
+                ))}
+                {!screenshots.length && <span className="screenshot-tabs-empty">尚未添加截图</span>}
+              </div>
+            </div>
             <div className="rule-import-preview compact-preview">
-              {image ? <img src={analysis?.previewUrl || image.data_url} alt="Excel 截图预览" /> : (
+              {activeScreenshot?.demo && analysis ? (
+                <DemoScreenshotPreview spreadsheet={analysis.spreadsheet} name={activeScreenshot.name} />
+              ) : activeScreenshot ? (
+                <img src={analysis?.previewUrl || activeScreenshot.payload.data_url} alt={`${activeScreenshot.name}预览`} />
+              ) : (
                 <div className="ocr-empty-state"><FileImage size={36} /><strong>Excel 截图预览</strong></div>
               )}
             </div>
@@ -348,8 +459,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
                 ><MapPin size={16} />目标数据 <span>{dataSelection.size}</span></button>
               </div>
               <button className="text-button" onClick={() => {
-                if (selectionTarget === "output") setOutputSelection(new Set());
-                else setDataSelection(new Set());
+                setActiveSelection(selectionTarget, new Set());
               }}>清除当前选择</button>
             </div>
             <div className="detected-sheet-wrap">
@@ -422,6 +532,109 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       </div>
     </div>
   );
+}
+
+function DemoScreenshotPreview({ spreadsheet, name }: { spreadsheet: DetectedSpreadsheet; name: string }) {
+  return (
+    <div className="demo-screenshot-preview" aria-label={`${name}示例预览`}>
+      <div className="demo-sheet-title">{name}</div>
+      <table>
+        <thead>
+          <tr><th />{spreadsheet.columns.map(({ label }) => <th key={label}>{label}</th>)}</tr>
+        </thead>
+        <tbody>
+          {spreadsheet.rows.map((row) => (
+            <tr key={row.number}>
+              <th>{row.number}</th>
+              {spreadsheet.cells[row.index].map((cell) => <td key={cell.id}>{cell.text}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function createBrowserDemoScreenshots(): ScreenshotWorkspaceItem<AnalysisResult>[] {
+  const definitions = [
+    {
+      id: "demo-profit",
+      name: "利润表截图",
+      startRow: 1150,
+      rows: [
+        ["主营业务收入", "29,797,107.90", "31,832,207.15"],
+        ["其他业务收入", "240,000.00", ""],
+        ["营业成本", "31,832,207.15", "11,116,521.97"],
+        ["合计", "30,037,107.90", "42,948,729.12"],
+      ],
+    },
+    {
+      id: "demo-balance",
+      name: "资产负债表截图",
+      startRow: 330,
+      rows: [
+        ["原材料", "918,944.37", "2,035,979.98"],
+        ["在产品", "", "0.00"],
+        ["库存商品", "1,116,084.44", "4,635,524.98"],
+        ["周转材料", "2,212.39", "0.00"],
+      ],
+    },
+  ];
+
+  return definitions.map((definition) => {
+    const spreadsheet = createDemoSpreadsheet(definition.startRow, definition.rows);
+    return {
+      id: definition.id,
+      name: definition.name,
+      payload: { path: definition.name, data_url: "", size_bytes: 0 },
+      analysis: {
+        spreadsheet,
+        previewUrl: "",
+        ocrItemCount: spreadsheet.cells.flat().length,
+      },
+      outputSelection: new Set([`A${definition.startRow}`, `A${definition.startRow + 1}`]),
+      dataSelection: new Set([`B${definition.startRow}`, `B${definition.startRow + 1}`]),
+      demo: true,
+    };
+  });
+}
+
+function createDemoSpreadsheet(startRow: number, values: string[][]): DetectedSpreadsheet {
+  const labels = ["A", "B", "C"];
+  const columns = labels.map((label, index) => ({
+    label,
+    index,
+    center: 90 + index * 180,
+    start: index * 180,
+    end: (index + 1) * 180,
+  }));
+  const rows = values.map((_, index) => ({
+    number: startRow + index,
+    index,
+    center: 21 + index * 42,
+    start: index * 42,
+    end: (index + 1) * 42,
+  }));
+  const cells = rows.map((row) => columns.map((column) => {
+    const address = `${column.label}${row.number}`;
+    return {
+      id: address,
+      address,
+      rowIndex: row.index,
+      columnIndex: column.index,
+      rowNumber: row.number,
+      columnLabel: column.label,
+      text: values[row.index][column.index] ?? "",
+      confidence: 0.99,
+      bounds: {
+        x: column.start,
+        y: row.start,
+        width: column.end - column.start,
+        height: row.end - row.start,
+      },
+    };
+  }));
+  return { columns, rows, cells, warnings: [] };
 }
 
 export interface OcrRegion {
