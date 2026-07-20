@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildRowSelectionPairs,
   fillCandidatePairs,
   fillCandidateValues,
   selectCellRange,
+  selectSingleColumnRange,
   toggleCellSelection,
+  toggleSingleCellPerRow,
   type CandidateRuleRow,
   type SelectableCell,
 } from "./ruleImageSelection";
@@ -34,6 +37,17 @@ describe("单元格选择", () => {
   it("拖动选择连续矩形并按从上到下、从左到右排序", () => {
     const selected = selectCellRange(cells, "A1", "B2");
     expect([...selected]).toEqual(["A1", "B1", "A2", "B2"]);
+  });
+
+  it("输出列名同一行只能选一个，新选择会替换该行原选择", () => {
+    const selected = toggleSingleCellPerRow(new Set(["A1", "A2"]), "B1", cells);
+    expect([...selected]).toEqual(["A2", "B1"]);
+    expect([...toggleSingleCellPerRow(selected, "B1", cells)]).toEqual(["A2"]);
+  });
+
+  it("输出列名拖动时只选择起始单元格所在列", () => {
+    const selected = selectSingleColumnRange(cells, "A1", "B3");
+    expect([...selected]).toEqual(["A1", "A2", "A3"]);
   });
 });
 
@@ -68,5 +82,45 @@ describe("候选规则填充", () => {
       ["收入", "B1"],
       ["成本", "B2"],
     ]);
+  });
+
+  it("可将同一行的一个输出列名展开到多个目标数据并追加列后缀", () => {
+    const extendedCells = [
+      ...cells,
+      { id: "C1", rowIndex: 0, columnIndex: 2, text: "120", address: "C1" },
+    ];
+    const result = buildRowSelectionPairs(
+      [extendedCells[0], extendedCells[2]],
+      [extendedCells[1], extendedCells[6], extendedCells[3]],
+      { 1: "期末", 2: "期初" },
+    );
+
+    expect(result.pairs).toEqual([
+      { outputColumn: "收入期末", cell: "B1" },
+      { outputColumn: "收入期初", cell: "C1" },
+      { outputColumn: "成本", cell: "B2" },
+    ]);
+    expect(result.suffixColumnIndexes).toEqual([1, 2]);
+    expect(result.missingSuffixColumnIndexes).toEqual([]);
+  });
+
+  it("同一行多目标数据时报告缺失和重复后缀", () => {
+    const extendedCells = [
+      ...cells,
+      { id: "C1", rowIndex: 0, columnIndex: 2, text: "120", address: "C1" },
+    ];
+    const missing = buildRowSelectionPairs(
+      [extendedCells[0]],
+      [extendedCells[1], extendedCells[6]],
+      { 1: "期末" },
+    );
+    expect(missing.missingSuffixColumnIndexes).toEqual([2]);
+
+    const duplicate = buildRowSelectionPairs(
+      [extendedCells[0]],
+      [extendedCells[1], extendedCells[6]],
+      { 1: "余额", 2: "余额" },
+    );
+    expect(duplicate.duplicateSuffixes).toEqual(["余额"]);
   });
 });

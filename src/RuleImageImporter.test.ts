@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapOcrItemsToSource, type OcrRegion } from "./RuleImageImporter";
+import { mapOcrItemsToSource, resolveDetectedColumnLabel, type OcrRegion } from "./RuleImageImporter";
 import type { OcrTextItem } from "./types";
 
 describe("mapOcrItemsToSource", () => {
@@ -32,5 +32,17 @@ describe("mapOcrItemsToSource", () => {
       [1, 417],
     ]);
     expect(mapped.text).toBe("330");
+  });
+});
+
+describe("resolveDetectedColumnLabel", () => {
+  it("截图从非 A 列开始时返回识别到的真实列字母", () => {
+    const columns = [
+      { index: 0, label: "M" },
+      { index: 1, label: "N" },
+    ];
+
+    expect(resolveDetectedColumnLabel(columns, 0)).toBe("M");
+    expect(resolveDetectedColumnLabel(columns, 1)).toBe("N");
   });
 });

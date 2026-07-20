@@ -15,12 +15,15 @@ import {
 } from "lucide-react";
 import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import {
+  buildRowSelectionPairs,
   createCandidateRuleRow,
-  fillCandidatePairs,
+  fillCandidatePairValues,
   fillCandidateValues,
   getSelectedCells,
   selectCellRange,
+  selectSingleColumnRange,
   toggleCellSelection,
+  toggleSingleCellPerRow,
   type CandidateRuleRow,
 } from "./ruleImageSelection";
 import {
@@ -68,6 +71,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   ]);
   const [activeCandidateId, setActiveCandidateId] = useState(() => candidates[0].id);
   const [selectionTarget, setSelectionTarget] = useState<SelectionTarget>("output");
+  const [dataColumnSuffixes, setDataColumnSuffixes] = useState<Record<string, Record<number, string>>>({});
   const [overwrite, setOverwrite] = useState(false);
   const [sheetMode, setSheetMode] = useState<SheetMode>("contains");
   const [sheetValue, setSheetValue] = useState("");
@@ -96,6 +100,16 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     () => getSelectedCells(cells, dataSelection),
     [cells, dataSelection],
   );
+  const activeColumnSuffixes = activeScreenshotId ? dataColumnSuffixes[activeScreenshotId] ?? {} : {};
+  const rowSelectionPairs = buildRowSelectionPairs(
+    selectedOutputCells,
+    selectedDataCells,
+    activeColumnSuffixes,
+  );
+  const suffixColumns = rowSelectionPairs.suffixColumnIndexes.map((columnIndex) => ({
+    columnIndex,
+    label: resolveDetectedColumnLabel(analysis?.spreadsheet.columns ?? [], columnIndex),
+  }));
 
   function loadPayloads(payloads: ImagePayload[], source: string) {
     if (!payloads.length) return;
@@ -175,6 +189,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       outputSelection: new Set(),
       dataSelection: new Set(),
     })));
+    setDataColumnSuffixes((current) => ({ ...current, [screenshotId]: {} }));
     setStatus("正在分区识别图片并重建 Excel 单元格...");
     try {
       const result = await analyzeSpreadsheetImage(activeScreenshot.payload.data_url, (imageBase64) =>
@@ -217,6 +232,11 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     const result = removeScreenshotItem(screenshots, id, activeScreenshotId);
     setScreenshots(result.items);
     setActiveScreenshotId(result.activeId);
+    setDataColumnSuffixes((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setError("");
     setStatus(result.items.length ? `已移除截图，剩余 ${result.items.length} 张。` : "请添加截图或读取剪贴板图片。");
   }
@@ -237,6 +257,17 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
 
   function updateCandidate(id: string, patch: Partial<CandidateRuleRow>) {
     setCandidates((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+  }
+
+  function updateDataColumnSuffix(columnIndex: number, value: string) {
+    if (!activeScreenshotId) return;
+    setDataColumnSuffixes((current) => ({
+      ...current,
+      [activeScreenshotId]: {
+        ...(current[activeScreenshotId] ?? {}),
+        [columnIndex]: value,
+      },
+    }));
   }
 
   function addCandidate() {
@@ -289,14 +320,37 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       setError("请分别选择输出列名单元格和目标数据单元格。 ");
       return;
     }
-    if (outputs.length !== selectedDataCells.length) {
-      setError(`两组选择数量不一致：输出列名 ${outputs.length} 个，目标数据 ${selectedDataCells.length} 个。`);
+    const result = buildRowSelectionPairs(outputs, selectedDataCells, activeColumnSuffixes);
+    if (result.missingOutputRowIndexes.length) {
+      const rows = result.missingOutputRowIndexes.map((rowIndex) => (
+        analysis?.spreadsheet.rows.find((row) => row.index === rowIndex)?.number ?? rowIndex + 1
+      ));
+      setError(`第 ${rows.join("、")} 行已选择目标数据，但没有选择输出列名。`);
       return;
     }
-    const result = fillCandidatePairs(candidates, activeCandidateId, outputs, selectedDataCells, overwrite);
-    setCandidates(result.rows);
+    const dataRows = new Set(selectedDataCells.map(({ rowIndex }) => rowIndex));
+    const outputOnlyRows = outputs
+      .filter(({ rowIndex }) => !dataRows.has(rowIndex))
+      .map(({ rowIndex }) => analysis?.spreadsheet.rows.find((row) => row.index === rowIndex)?.number ?? rowIndex + 1);
+    if (outputOnlyRows.length) {
+      setError(`第 ${outputOnlyRows.join("、")} 行已选择输出列名，但没有选择目标数据。`);
+      return;
+    }
+    if (result.missingSuffixColumnIndexes.length) {
+      const columns = result.missingSuffixColumnIndexes.map((index) => (
+        resolveDetectedColumnLabel(analysis?.spreadsheet.columns ?? [], index)
+      ));
+      setError(`同一行包含多个目标数据，请先填写 ${columns.join("、")} 列的区别后缀。`);
+      return;
+    }
+    if (result.duplicateSuffixes.length) {
+      setError(`数据列后缀不能重复：${result.duplicateSuffixes.join("、")}。请为不同列填写不同后缀。`);
+      return;
+    }
+    const filled = fillCandidatePairValues(candidates, activeCandidateId, result.pairs, overwrite);
+    setCandidates(filled.rows);
     setError("");
-    setStatus(`已按顺序配对填入 ${result.filled} 条候选规则。`);
+    setStatus(`已按行配对填入 ${filled.filled} 条候选规则。`);
   }
 
   function handleCellPointerDown(event: ReactPointerEvent, cell: DetectedSpreadsheetCell) {
@@ -308,7 +362,9 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     const drag = dragRef.current;
     if (!drag || event.buttons !== 1) return;
     if (drag.startId !== cell.id) drag.moved = true;
-    const range = selectCellRange(cells, drag.startId, cell.id);
+    const range = drag.target === "output"
+      ? selectSingleColumnRange(cells, drag.startId, cell.id)
+      : selectCellRange(cells, drag.startId, cell.id);
     setActiveSelection(drag.target, range);
   }
 
@@ -316,7 +372,9 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
     const drag = dragRef.current;
     if (!drag) return;
     if (!drag.moved) {
-      setActiveSelection(drag.target, (selected) => toggleCellSelection(selected, cell.id));
+      setActiveSelection(drag.target, (selected) => drag.target === "output"
+        ? toggleSingleCellPerRow(selected, cell.id, cells)
+        : toggleCellSelection(selected, cell.id));
     }
     dragRef.current = null;
   }
@@ -453,10 +511,12 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
                 <button
                   className={selectionTarget === "output" ? "active" : ""}
                   onClick={() => setSelectionTarget("output")}
+                  title="每个 Excel 行只能选择一个输出列名单元格"
                 ><Type size={16} />输出列名 <span>{outputSelection.size}</span></button>
                 <button
                   className={selectionTarget === "data" ? "active" : ""}
                   onClick={() => setSelectionTarget("data")}
+                  title="每个 Excel 行可以选择多个目标数据单元格"
                 ><MapPin size={16} />目标数据 <span>{dataSelection.size}</span></button>
               </div>
               <button className="text-button" onClick={() => {
@@ -505,6 +565,26 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
               <button className="danger-button" onClick={deleteActiveCandidate}><Trash2 size={16} />删除当前</button>
               <label className="overwrite-toggle"><input type="checkbox" checked={overwrite} onChange={(event) => setOverwrite(event.target.checked)} />覆盖已有内容</label>
             </div>
+            {suffixColumns.length > 0 && (
+              <div className="data-suffix-prompt" role="group" aria-label="多目标数据列后缀">
+                <div className="data-suffix-copy">
+                  <AlertTriangle size={17} />
+                  <span><strong>同一行选择了多个目标数据</strong>请为不同数据列填写互不相同的后缀；配对时会追加到输出列名后。</span>
+                </div>
+                <div className="data-suffix-fields">
+                  {suffixColumns.map(({ columnIndex, label }) => (
+                    <label key={columnIndex}>
+                      <span>{label} 列后缀</span>
+                      <input
+                        value={activeColumnSuffixes[columnIndex] ?? ""}
+                        onChange={(event) => updateDataColumnSuffix(columnIndex, event.target.value)}
+                        placeholder="如：期末"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="candidate-fill-actions">
               <button className="soft-button" onClick={applyOutputSelection}>仅填列名</button>
               <button className="soft-button" onClick={applyDataSelection}>仅填坐标</button>
@@ -533,6 +613,14 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       </div>
     </div>
   );
+}
+
+export function resolveDetectedColumnLabel(
+  columns: ReadonlyArray<Pick<DetectedSpreadsheet["columns"][number], "index" | "label">>,
+  columnIndex: number,
+): string {
+  return columns.find((column) => column.index === columnIndex)?.label
+    ?? numberToColumnLabel(columnIndex + 1);
 }
 
 function DemoScreenshotPreview({ spreadsheet, name }: { spreadsheet: DetectedSpreadsheet; name: string }) {
@@ -594,7 +682,12 @@ function createBrowserDemoScreenshots(): ScreenshotWorkspaceItem<AnalysisResult>
         ocrItemCount: spreadsheet.cells.flat().length,
       },
       outputSelection: new Set([`A${definition.startRow}`, `A${definition.startRow + 1}`]),
-      dataSelection: new Set([`B${definition.startRow}`, `B${definition.startRow + 1}`]),
+      dataSelection: new Set([
+        `B${definition.startRow}`,
+        `C${definition.startRow}`,
+        `B${definition.startRow + 1}`,
+        `C${definition.startRow + 1}`,
+      ]),
       demo: true,
     };
   });

@@ -1889,6 +1889,58 @@ td select {
   flex: 1;
 }
 
+.data-suffix-prompt {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 9px;
+  max-height: 156px;
+  padding: 10px 12px;
+  overflow: auto;
+  border-bottom: 1px solid rgba(74, 119, 177, 0.28);
+  background: #132640;
+}
+
+.data-suffix-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #b7c9df;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.data-suffix-copy svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #f2bd62;
+}
+
+.data-suffix-copy strong {
+  display: block;
+  color: #f0f6ff;
+  font-size: 12px;
+}
+
+.data-suffix-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.data-suffix-fields label {
+  display: grid;
+  gap: 5px;
+  color: #a8bdd7;
+  font-size: 10px;
+}
+
+.data-suffix-fields input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
 .overwrite-toggle {
   display: inline-flex;
   flex: 1;
