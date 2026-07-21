@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 
 const buildScript = readFileSync(new URL("../build.bat", import.meta.url), "utf-8");
 const installerScript = readFileSync(new URL("../scripts/build_installer.bat", import.meta.url), "utf-8");
+const auditScript = readFileSync(new URL("../scripts/audit_release.ps1", import.meta.url), "utf-8");
 const tauriConfig = readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf-8");
 
 describe("发布脚本隐私检查", () => {
@@ -13,7 +14,8 @@ describe("发布脚本隐私检查", () => {
     expect(buildScript).toContain("--remap-path-prefix=%USERPROFILE%=~");
     expect(buildScript).toContain("scripts\\audit_release.ps1");
     expect(buildScript).toContain("scripts\\setup_umi_ocr.ps1");
-    expect(buildScript).toContain("-Version 0.2.2");
+    expect(buildScript).toContain("-Version 0.2.3");
+    expect(auditScript).toContain("core.quotepath=false");
     expect(buildScript).not.toMatch(/[A-Z]:\\(?:Users|DevHub)\\/i);
   });
 

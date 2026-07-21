@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.2.2",
+    [string]$Version = "0.2.3",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -87,18 +87,12 @@ Compress-Archive -Path $PortableStage -DestinationPath $PortableZip -Force
 $notes = @(
     "# Financial Tool 财务工具箱 v$Version",
     "",
-    "## 新增",
-    "- 集成 Umi-OCR Rapid v2.1.5，本地完成图片文字识别。",
-    "- 新增一键截图 OCR，识别文字自动写入剪贴板。",
-    "- 新增红框表头、蓝框数据的 Excel 截图规则定位。",
-    "- 图片生成的输出列名和单元格先进入可编辑预览，确认后追加到规则配置。",
-    "- OCR 设置与插件入口独立保留，为后续财务工具插件扩展预留空间。",
-    "",
-    "## 修复",
-    "- 修复剪贴板中的图片格式延迟就绪时，图片规则自动识别会跳过该截图的问题。",
-    "- 修复 Excel 浅青填充和边缘蓝色噪声导致标注蓝框漏检的问题。",
-    "- 汇总结果仅保留文件名列，并为每个文件名写入源工作簿链接；移除冗余文件路径列。",
-    "- 数据源配置中的输出文件改为普通文件名展示，不再作为可点击链接。",
+    "## 本版更新",
+    "- 前端由 React 迁移至 Vue 3，构建链路改为 Vue + Vite。",
+    "- 接入 Pinia 管理应用导航状态，并引入 Element Plus 中文界面上下文。",
+    "- 保留原有 Excel 汇总、方案管理、截图识字、图片生成规则和文本清洗能力。",
+    "- 清理 React、React DOM、lucide-react 与 React Vite 插件依赖。",
+    "- 浏览器预览不再显示顶部模式提示横幅。",
     "",
     "## 既有功能",
     "- 支持 .xlsx / .xlsm / .xltx / .xltm 文件定向汇总。",

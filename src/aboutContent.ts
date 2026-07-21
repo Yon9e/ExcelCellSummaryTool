@@ -14,7 +14,7 @@ export interface AboutContent {
 export function getAboutContent(): AboutContent {
   return {
     title: "Financial Tool 财务工具箱",
-    version: "v0.2.2",
+    version: "v0.2.3",
     description: "Excel 定向汇总、截图识字与图片规则定位",
     cards: [
       { title: "主作者", description: "Yon9e", detail: "个人发布与维护" },
@@ -30,8 +30,8 @@ export function getAboutContent(): AboutContent {
       },
       {
         title: "更新记录",
-        description: "v0.2.2",
-        detail: "支持从 Excel 截图重建单元格表格，并通过点击或拖动选择生成候选规则",
+        description: "v0.2.3",
+        detail: "前端迁移至 Vue 3，并接入 Pinia 与 Element Plus",
       },
     ],
   };

@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.2.2",
+    [string]$Version = "0.2.3",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -224,7 +224,7 @@ $SensitivePatterns = [ordered]@{
     "本机项目目录" = "(?i)$ProjectRootPattern"
 }
 
-$TrackedPaths = @(git -C $ProjectRoot ls-files --cached --others --exclude-standard)
+$TrackedPaths = @(git -c core.quotepath=false -C $ProjectRoot ls-files --cached --others --exclude-standard)
 if ($LASTEXITCODE -ne 0) {
     throw "发布审计失败：无法读取 Git 跟踪文件清单。"
 }
