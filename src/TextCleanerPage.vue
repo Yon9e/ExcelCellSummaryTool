@@ -142,8 +142,8 @@ async function copyResult() {
       <div class="regex-option">
         <label class="cleaner-toggle compact"><input v-model="options.customRegex.enabled" type="checkbox" /><span class="cleaner-toggle-icon"><Check :size="14" /></span><span><strong>自定义正则</strong></span></label>
         <button type="button" class="circle-help-button" title="打开财务工作常用正则表达式教程" aria-label="打开正则表达式教程" @click="props.onOpenRegexTutorial"><CircleHelp :size="18" /></button>
-        <input v-model="options.customRegex.pattern" aria-label="正则查找表达式" :disabled="!options.customRegex.enabled" placeholder="查找表达式，例如 ^(\d{4})(\d{2})(\d{2})$" />
-        <input v-model="options.customRegex.replacement" aria-label="正则替换内容" :disabled="!options.customRegex.enabled" placeholder="替换内容，例如 $1-$2-$3" />
+        <input v-model="options.customRegex.pattern" class="regex-pattern-input" aria-label="正则查找表达式" :disabled="!options.customRegex.enabled" placeholder="查找表达式，例如 ^(\d{4})(\d{2})(\d{2})$" />
+        <input v-model="options.customRegex.replacement" class="regex-replacement-input" aria-label="正则替换内容" :disabled="!options.customRegex.enabled" placeholder="替换内容，例如 $1-$2-$3" />
         <div class="regex-flags" aria-label="正则标记"><label v-for="([flag, label]) in [['g', '全部'], ['m', '多行'], ['i', '忽略大小写']]" :key="flag"><input type="checkbox" :checked="options.customRegex.flags.includes(flag)" :disabled="!options.customRegex.enabled" @change="setRegexFlag(flag, ($event.target as HTMLInputElement).checked)" />{{ label }}</label></div>
       </div>
     </section>

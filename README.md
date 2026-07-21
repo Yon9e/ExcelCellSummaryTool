@@ -29,8 +29,8 @@
 
 从 GitHub Releases 下载最新版：
 
-- 安装版：`ExcelCellSummaryTool-v0.2.3-win64-setup.exe`
-- 免安装版：`ExcelCellSummaryTool-v0.2.3-win64-portable.zip`
+- 安装版：`ExcelCellSummaryTool-v0.2.4-win64-setup.exe`
+- 免安装版：`ExcelCellSummaryTool-v0.2.4-win64-portable.zip`
 
 安装版直接运行安装程序。免安装版必须先完整解压，再运行 `ExcelCellSummaryTool.exe`；不要只从压缩包中单独取出 exe，因为 OCR 需要同目录的 `umi-ocr` 运行文件。
 
@@ -102,8 +102,8 @@ Set-Location .\src-tauri
 
 - `release\portable\ExcelCellSummaryTool\ExcelCellSummaryTool.exe`
 - `release\portable\ExcelCellSummaryTool\umi-ocr\Umi-OCR.exe`
-- `release\ExcelCellSummaryTool-v0.2.3-win64-portable.zip`
-- `release\ExcelCellSummaryTool-v0.2.3-win64-setup.exe`
+- `release\ExcelCellSummaryTool-v0.2.4-win64-portable.zip`
+- `release\ExcelCellSummaryTool-v0.2.4-win64-setup.exe`
 - `release\SHA256SUMS.txt`
 
 打包结束会运行 `scripts\audit_release.ps1`，核对 portable 与压缩包文件白名单，并扫描令牌、私钥、本机路径、用户配置和日志。

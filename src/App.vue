@@ -211,7 +211,6 @@ onBeforeUnmount(() => unlisteners.forEach((unlisten) => unlisten()));
           <component :is="page.icon" :size="22" /><span>{{ page.label }}</span>
         </button>
       </nav>
-      <div class="side-note"><p>非递归扫描目标目录</p><p>支持 .xlsx / .xlsm / .xltx / .xltm</p><p>公式读取已保存缓存值</p></div>
     </aside>
     <main class="workspace">
       <header class="window-bar" data-tauri-drag-region><div><h2>Financial Tool 财务工具箱</h2><p>Excel 定向汇总、截图识字与剪贴板清洗</p></div><div class="window-actions"><ElButton class="soft-button" @click="openSupportWindow('help', activeWorkspace)"><Info :size="19" />帮助说明</ElButton></div></header>

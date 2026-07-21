@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.2.3",
+    [string]$Version = "0.2.4",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -88,11 +88,11 @@ $notes = @(
     "# Financial Tool 财务工具箱 v$Version",
     "",
     "## 本版更新",
-    "- 前端由 React 迁移至 Vue 3，构建链路改为 Vue + Vite。",
-    "- 接入 Pinia 管理应用导航状态，并引入 Element Plus 中文界面上下文。",
-    "- 保留原有 Excel 汇总、方案管理、截图识字、图片生成规则和文本清洗能力。",
-    "- 清理 React、React DOM、lucide-react 与 React Vite 插件依赖。",
-    "- 浏览器预览不再显示顶部模式提示横幅。",
+    "- 缩小侧栏、标题、按钮、输入框和整体间距，提高桌面工作区信息密度。",
+    "- 增加 1180px 与 980px 两档响应式布局，窄窗口不再挤压变形。",
+    "- 修复文本清洗页自定义正则区域在窄窗口下竖排和输入框拥挤的问题。",
+    "- 桌面窗口最小尺寸调整为 900 × 620，并为低高度窗口优化内容滚动。",
+    "- 删除侧栏底部的扫描格式说明卡片。",
     "",
     "## 既有功能",
     "- 支持 .xlsx / .xlsm / .xltx / .xltm 文件定向汇总。",
