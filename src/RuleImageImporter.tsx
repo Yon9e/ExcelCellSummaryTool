@@ -416,12 +416,12 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
           <div>
             <p className="eyebrow">图片定位规则</p>
             <h3 id="rule-import-title">从 Excel 截图选择单元格</h3>
-            <p>识别全部可见单元格，再点击或拖动选择输出列名和目标数据；Sheet 信息仍由人工确认。</p>
+            <p>识别全部可见单元格，再点击或拖动选择输出列名和目标数据。</p>
           </div>
           <button className="icon-button" onClick={onClose} title="关闭"><X size={20} /></button>
         </header>
 
-        <div className="rule-import-controls">
+        <div className="rule-import-command-bar">
           <div className="rule-import-source-actions">
             <button className="soft-button" disabled={busy} onClick={() => void selectImage()}>
               <Images size={19} />添加图片
@@ -437,7 +437,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
               <ScanSearch size={19} />{busy ? "识别中" : "识别图片"}
             </button>
           </div>
-          <label>
+          <label className="rule-import-mode-control">
             <span>Sheet 模式</span>
             <select value={sheetMode} onChange={(event) => setSheetMode(event.target.value as SheetMode)}>
               <option value="exact">exact - 精确匹配</option>
@@ -558,7 +558,11 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
 
           <section className="candidate-list rule-candidate-editor">
             <div className="candidate-list-heading">
-              <span>候选规则</span><small>点击规则行设置填充起点</small>
+              <div>
+                <span>候选规则</span>
+                <small>点击规则行设置填充起点</small>
+              </div>
+              <small>{candidates.length} 条</small>
             </div>
             <div className="candidate-editor-actions">
               <button className="soft-button" onClick={addCandidate}><Plus size={16} />添加规则</button>

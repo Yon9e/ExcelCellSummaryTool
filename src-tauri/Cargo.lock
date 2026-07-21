@@ -992,6 +992,7 @@ dependencies = [
  "base64 0.22.1",
  "calamine",
  "chrono",
+ "clipboard-win",
  "image",
  "imagesize",
  "log",

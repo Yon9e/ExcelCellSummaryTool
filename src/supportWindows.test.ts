@@ -15,4 +15,13 @@ describe("support windows", () => {
   it("does not route about to a support window", () => {
     expect(getSupportViewFromSearch("?view=about")).toBe("main");
   });
+
+  it("opens the Regex tutorial as a dark, minimizable separate window", () => {
+    const config = getSupportWindowConfig("regex");
+
+    expect(config.label).toBe("regex-manual");
+    expect(config.url).toContain("view=regex");
+    expect(config.minimizable).toBe(true);
+    expect(getSupportViewFromSearch("?view=regex")).toBe("regex");
+  });
 });

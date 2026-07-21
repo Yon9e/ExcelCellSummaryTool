@@ -23,6 +23,8 @@ pub fn run() {
             save_ocr_settings,
             read_image_file,
             read_clipboard_image,
+            read_clipboard_text,
+            write_clipboard_text,
             get_clipboard_sequence_number,
             ocr_image_base64,
             start_screenshot_ocr,
@@ -40,6 +42,7 @@ pub fn run() {
         });
 }
 
+mod clipboard_text;
 mod excel_summary;
 mod file_filter;
 mod models;
@@ -107,6 +110,20 @@ async fn read_clipboard_image() -> Result<Option<ocr::ImagePayload>, String> {
     tauri::async_runtime::spawn_blocking(ocr::read_clipboard_image)
         .await
         .map_err(|error| format!("剪贴板读取任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn read_clipboard_text() -> Result<clipboard_text::ClipboardTextPayload, String> {
+    tauri::async_runtime::spawn_blocking(clipboard_text::read)
+        .await
+        .map_err(|error| format!("剪贴板文本读取任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn write_clipboard_text(text: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || clipboard_text::write(text))
+        .await
+        .map_err(|error| format!("剪贴板文本写入任务失败：{error}"))?
 }
 
 #[tauri::command]

@@ -1,4 +1,4 @@
-export type SupportView = "main" | "help";
+export type SupportView = "main" | "help" | "regex";
 
 export interface SupportWindowConfig {
   label: string;
@@ -27,13 +27,25 @@ export function getSupportWindowConfig(view: Exclude<SupportView, "main">): Supp
       center: true,
       backgroundColor: "#0e1b2d",
     },
+    regex: {
+      label: "regex-manual",
+      title: "正则表达式教程",
+      url: "/?view=regex",
+      width: 1180,
+      height: 820,
+      visible: false,
+      minimizable: true,
+      resizable: true,
+      center: true,
+      backgroundColor: "#0e1b2d",
+    },
   };
   return configs[view];
 }
 
 export function getSupportViewFromSearch(search: string): SupportView {
   const view = new URLSearchParams(search).get("view");
-  if (view === "help") {
+  if (view === "help" || view === "regex") {
     return view;
   }
   return "main";

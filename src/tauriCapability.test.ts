@@ -3,7 +3,7 @@ import capability from "../src-tauri/capabilities/default.json";
 
 describe("tauri capability", () => {
   it("allows the help support window to be created and focused", () => {
-    expect(capability.windows).toEqual(expect.arrayContaining(["main", "help-manual"]));
+    expect(capability.windows).toEqual(expect.arrayContaining(["main", "help-manual", "regex-manual"]));
     expect(capability.windows).not.toContain("about");
     expect(capability.permissions).toEqual(
       expect.arrayContaining([

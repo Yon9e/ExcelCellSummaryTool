@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 import { ocrTabs, summaryTabs, workspacePages } from "./navigation";
 
 describe("navigation", () => {
-  it("keeps only summary, OCR, and about in the sidebar", () => {
-    expect(workspacePages.map((page) => page.key)).toEqual(["summary", "ocr", "about"]);
+  it("keeps summary, OCR, text cleaning, and about in the sidebar", () => {
+    expect(workspacePages.map((page) => page.key)).toEqual([
+      "summary",
+      "ocr",
+      "text-cleaner",
+      "about",
+    ]);
+    expect(workspacePages.find((page) => page.key === "text-cleaner")?.label).toBe("文本清洗");
     expect(workspacePages.find((page) => page.key === "about")?.label).toBe("关于");
   });
 

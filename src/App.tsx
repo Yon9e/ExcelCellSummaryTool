@@ -47,6 +47,7 @@ import { AboutPage } from "./AboutPage";
 import { OcrPage } from "./OcrPage";
 import { OcrSettingsPage } from "./OcrSettingsPage";
 import { RuleImageImporter } from "./RuleImageImporter";
+import { TextCleanerPage } from "./TextCleanerPage";
 import { ocrTabs, summaryTabs, workspacePages } from "./navigation";
 import {
   getSupportViewFromSearch,
@@ -157,8 +158,10 @@ function App() {
     ? "汇总功能"
     : activeWorkspace === "ocr"
       ? "OCR 工具"
-      : "应用信息";
-  const contentKey = `${activeWorkspace}-${activeWorkspace === "summary" ? activeSummaryTab : activeWorkspace === "ocr" ? activeOcrTab : "about"}`;
+      : activeWorkspace === "text-cleaner"
+        ? "剪贴板工具"
+        : "应用信息";
+  const contentKey = `${activeWorkspace}-${activeWorkspace === "summary" ? activeSummaryTab : activeWorkspace === "ocr" ? activeOcrTab : activeWorkspace}`;
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
   const selectedSchemeData = useMemo(
     () => schemes.find((scheme) => scheme.name === selectedScheme),
@@ -506,8 +509,8 @@ function App() {
     await executeSummary(request);
   }
 
-  async function openHelpWindow() {
-    const config = getSupportWindowConfig("help");
+  async function openSupportWindow(view: Exclude<SupportView, "main">) {
+    const config = getSupportWindowConfig(view);
     if (browserPreview) {
       window.open(config.url, "_blank", "noopener,noreferrer");
       return;
@@ -564,10 +567,10 @@ function App() {
         <header className="window-bar" data-tauri-drag-region>
           <div>
             <h2>Financial Tool 财务工具箱</h2>
-            <p>Excel 定向汇总、截图识字与规则定位</p>
+            <p>Excel 定向汇总、截图识字与剪贴板清洗</p>
           </div>
           <div className="window-actions">
-            <button className="soft-button" onClick={() => void openHelpWindow()}>
+            <button className="soft-button" onClick={() => void openSupportWindow("help")}>
               <Info size={19} />
               帮助说明
             </button>
@@ -942,6 +945,13 @@ function App() {
             {activeWorkspace === "ocr" && activeOcrTab === "capture" && <OcrPage onLog={appendLog} />}
 
             {activeWorkspace === "ocr" && activeOcrTab === "settings" && <OcrSettingsPage onLog={appendLog} />}
+
+            {activeWorkspace === "text-cleaner" && (
+              <TextCleanerPage
+                onLog={appendLog}
+                onOpenRegexTutorial={() => void openSupportWindow("regex")}
+              />
+            )}
 
             {activeWorkspace === "about" && <AboutPage />}
           </div>

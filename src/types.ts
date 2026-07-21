@@ -1,6 +1,6 @@
 export type SheetMode = "exact" | "contains" | "index";
 export type FilterMode = "include" | "exclude";
-export type WorkspaceKey = "summary" | "ocr" | "about";
+export type WorkspaceKey = "summary" | "ocr" | "text-cleaner" | "about";
 export type SummaryTabKey = "scheme" | "source" | "rules" | "run";
 export type OcrTabKey = "capture" | "settings";
 
@@ -88,6 +88,11 @@ export interface ImagePayload {
   path: string;
   data_url: string;
   size_bytes: number;
+}
+
+export interface ClipboardTextPayload {
+  text: string;
+  html: string | null;
 }
 
 export interface OcrTextItem {
