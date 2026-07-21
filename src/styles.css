@@ -2164,6 +2164,13 @@ td select {
   margin-bottom: 28px;
 }
 
+.support-window-heading-with-return {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
 .support-window-heading h1 {
   margin: 0;
   color: #ffffff;
@@ -2415,6 +2422,40 @@ td select {
   color: #9fb7d4;
 }
 
+.regex-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.support-return-button {
+  display: inline-flex;
+  min-height: 46px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #365b83;
+  border-radius: 7px;
+  padding: 0 16px;
+  color: #d9eaff;
+  background: #102947;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.support-return-button:hover {
+  border-color: #5ab9ff;
+  color: #ffffff;
+  background: #173960;
+}
+
+.support-return-button:focus-visible {
+  outline: 2px solid #55cfe0;
+  outline-offset: 2px;
+}
+
 .regex-search {
   display: flex;
   width: min(390px, 40vw);
@@ -2567,6 +2608,21 @@ td select {
   .regex-option > input:first-of-type { grid-column: 1 / -1; }
   .regex-option > input:nth-of-type(2) { grid-column: 1 / 3; }
   .regex-recipe-list { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .support-window-shell,
+  .regex-manual-shell { padding: 24px 18px; }
+  .support-window-heading-with-return,
+  .regex-heading,
+  .regex-heading-actions { align-items: stretch; }
+  .support-window-heading-with-return,
+  .regex-heading { flex-direction: column; }
+  .regex-heading-actions { flex-direction: column; }
+  .regex-search { width: 100%; }
+  .support-return-button { width: 100%; }
+  .regex-manual-layout { grid-template-columns: 1fr; }
+  .regex-index { position: static; }
 }
 
 .about-hero {

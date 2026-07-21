@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSupportWindowConfig, getSupportViewFromSearch } from "./supportWindows";
+import { getMainViewPath, getSupportWindowConfig, getSupportViewFromSearch } from "./supportWindows";
 
 describe("support windows", () => {
   it("opens the help manual as a minimizable separate window with a dark first paint", () => {
@@ -23,5 +23,10 @@ describe("support windows", () => {
     expect(config.url).toContain("view=regex");
     expect(config.minimizable).toBe(true);
     expect(getSupportViewFromSearch("?view=regex")).toBe("regex");
+  });
+
+  it("returns from a support page to the main view without preserving its view query", () => {
+    expect(getMainViewPath("http://127.0.0.1:5173/?view=regex")).toBe("/");
+    expect(getMainViewPath("/?view=help#step-2")).toBe("/");
   });
 });

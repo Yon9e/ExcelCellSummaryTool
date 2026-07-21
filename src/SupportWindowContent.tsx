@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauriRuntime } from "./browserPreview";
 import { getHelpManual } from "./helpManual";
 import { regexManualSections } from "./regexManual";
-import type { SupportView } from "./supportWindows";
+import { getMainViewPath, type SupportView } from "./supportWindows";
 
 export function SupportWindowContent({ view }: { view: Exclude<SupportView, "main"> }) {
   const [query, setQuery] = useState("");
@@ -35,6 +35,18 @@ export function SupportWindowContent({ view }: { view: Exclude<SupportView, "mai
       .filter((section) => section.recipes.length > 0);
   }, [query]);
 
+  async function returnToMain(): Promise<void> {
+    if (isTauriRuntime()) {
+      try {
+        await getCurrentWindow().close();
+        return;
+      } catch {
+        // 若窗口关闭被系统阻止，则降级为切回主界面。
+      }
+    }
+    window.location.assign(getMainViewPath(window.location.href));
+  }
+
   if (view === "regex") {
     return (
       <main className="support-window-shell regex-manual-shell">
@@ -44,10 +56,16 @@ export function SupportWindowContent({ view }: { view: Exclude<SupportView, "mai
             <h1>财务工作常用正则表达式</h1>
             <p>按任务查找可直接使用的查找与替换方案。本工具使用 JavaScript 正则语法。</p>
           </div>
-          <label className="regex-search">
-            <Search size={18} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索日期、金额、公司名、OCR……" />
-          </label>
+          <div className="regex-heading-actions">
+            <label className="regex-search">
+              <Search size={18} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索日期、金额、公司名、OCR……" />
+            </label>
+            <button className="support-return-button" type="button" onClick={() => void returnToMain()}>
+              <ArrowLeft size={18} />
+              返回主界面
+            </button>
+          </div>
         </header>
         <div className="regex-manual-layout">
           <nav className="regex-index" aria-label="正则教程目录">
@@ -83,9 +101,15 @@ export function SupportWindowContent({ view }: { view: Exclude<SupportView, "mai
 
   return (
     <main className="support-window-shell">
-      <header className="support-window-heading">
-        <p className="eyebrow">Excel 单元格定向汇总工具</p>
-        <h1>{manual.title}</h1>
+      <header className="support-window-heading support-window-heading-with-return">
+        <div>
+          <p className="eyebrow">Excel 单元格定向汇总工具</p>
+          <h1>{manual.title}</h1>
+        </div>
+        <button className="support-return-button" type="button" onClick={() => void returnToMain()}>
+          <ArrowLeft size={18} />
+          返回主界面
+        </button>
       </header>
       <div className="help-manual-body support-manual-body">
         {manual.sections.map((section, sectionIndex) => (

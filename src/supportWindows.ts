@@ -50,3 +50,8 @@ export function getSupportViewFromSearch(search: string): SupportView {
   }
   return "main";
 }
+
+export function getMainViewPath(currentUrl: string): string {
+  const current = new URL(currentUrl, "https://financial-tool.local");
+  return current.pathname || "/";
+}
