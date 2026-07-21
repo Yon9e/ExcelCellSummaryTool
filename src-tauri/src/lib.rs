@@ -25,6 +25,7 @@ pub fn run() {
             read_clipboard_image,
             read_clipboard_text,
             write_clipboard_text,
+            write_clipboard_text_if_sequence,
             get_clipboard_sequence_number,
             ocr_image_base64,
             start_screenshot_ocr,
@@ -124,6 +125,18 @@ async fn write_clipboard_text(text: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || clipboard_text::write(text))
         .await
         .map_err(|error| format!("剪贴板文本写入任务失败：{error}"))?
+}
+
+#[tauri::command]
+async fn write_clipboard_text_if_sequence(
+    text: String,
+    expected_sequence: u32,
+) -> Result<Option<u32>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        clipboard_text::write_if_sequence(text, expected_sequence)
+    })
+    .await
+    .map_err(|error| format!("剪贴板文本写入任务失败：{error}"))?
 }
 
 #[tauri::command]

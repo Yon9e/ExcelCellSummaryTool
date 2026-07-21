@@ -1323,6 +1323,12 @@ td select {
 .rule-import-backdrop {
   z-index: 30;
   padding: 14px;
+  animation: rule-import-backdrop-enter 180ms ease-out both;
+}
+
+.rule-import-backdrop.is-closing {
+  pointer-events: none;
+  animation: rule-import-backdrop-leave 160ms ease-in both;
 }
 
 .rule-import-modal {
@@ -1337,6 +1343,31 @@ td select {
   border-radius: 18px;
   background: #10223a;
   box-shadow: 0 30px 76px rgba(0, 0, 0, 0.46);
+  animation: rule-import-modal-enter 210ms cubic-bezier(0.2, 0.82, 0.25, 1) both;
+}
+
+.rule-import-backdrop.is-closing .rule-import-modal {
+  animation: rule-import-modal-leave 150ms ease-in both;
+}
+
+@keyframes rule-import-backdrop-enter {
+  from { background: rgba(3, 9, 18, 0); backdrop-filter: blur(0); }
+  to { background: rgba(3, 9, 18, 0.68); backdrop-filter: blur(8px); }
+}
+
+@keyframes rule-import-backdrop-leave {
+  from { background: rgba(3, 9, 18, 0.68); backdrop-filter: blur(8px); }
+  to { background: rgba(3, 9, 18, 0); backdrop-filter: blur(0); }
+}
+
+@keyframes rule-import-modal-enter {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rule-import-modal-leave {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.985); }
 }
 
 .rule-import-heading {
@@ -1835,6 +1866,11 @@ td select {
   position: relative;
   max-width: 190px;
   cursor: crosshair;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
 }
 
 .detected-sheet td:hover {
@@ -1859,16 +1895,33 @@ td select {
 .detected-sheet td.output-selected {
   box-shadow: inset 0 0 0 2px #4ed0c5;
   background: rgba(52, 154, 147, 0.24);
+  animation: detected-cell-select 180ms ease-out both;
 }
 
 .detected-sheet td.data-selected {
   box-shadow: inset 0 0 0 2px #55a8ff;
   background: rgba(52, 119, 190, 0.28);
+  animation: detected-cell-select 180ms ease-out both;
 }
 
 .detected-sheet td.output-selected.data-selected {
   box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 4px #4f9ee8;
   background: rgba(64, 139, 169, 0.34);
+}
+
+.detected-sheet.is-dragging td {
+  transition-duration: 90ms;
+}
+
+.detected-sheet.is-dragging td.output-selected,
+.detected-sheet.is-dragging td.data-selected {
+  transform: translateY(-1px);
+}
+
+@keyframes detected-cell-select {
+  0% { transform: scale(0.975); }
+  65% { transform: scale(1.01); }
+  100% { transform: scale(1); }
 }
 
 .rule-candidate-editor {
@@ -2188,8 +2241,10 @@ td select {
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-rows: auto auto auto minmax(320px, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 14px;
+  overflow: auto;
+  padding: 0 1px 2px 0;
 }
 
 .cleaner-options {
@@ -2351,13 +2406,91 @@ td select {
 .cleaner-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.clipboard-watch-toggle {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid #2d4b70;
+  border-radius: 8px;
+  color: #dceaff;
+  background: #0c1c30;
+  cursor: pointer;
+}
+
+.clipboard-watch-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.clipboard-watch-indicator {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #44648c;
+  border-radius: 50%;
+  color: transparent;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.clipboard-watch-toggle strong,
+.clipboard-watch-toggle small {
+  display: block;
+  line-height: 1.2;
+}
+
+.clipboard-watch-toggle strong {
+  color: #edf5ff;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.clipboard-watch-toggle small {
+  margin-top: 3px;
+  color: #8fa8c9;
+  font-size: 11px;
+}
+
+.clipboard-watch-toggle:has(input:checked) {
+  border-color: #36bfc4;
+  background: #12344a;
+}
+
+.clipboard-watch-toggle input:checked + .clipboard-watch-indicator {
+  border-color: #42d1c3;
+  color: #071d2a;
+  background: #55d6c5;
+  transform: scale(1.06);
+}
+
+.clipboard-watch-toggle:has(input:focus-visible) {
+  outline: 3px solid rgba(82, 165, 255, 0.24);
+  outline-offset: 2px;
+}
+
+.clipboard-watch-toggle[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .cleaner-count {
   margin-left: auto;
+  min-width: 0;
   color: #8ea7c8;
   font-size: 13px;
+  text-align: right;
 }
 
 .cleaner-error {
@@ -2370,9 +2503,10 @@ td select {
 
 .cleaner-editor-grid {
   display: grid;
-  min-height: 0;
+  min-height: 280px;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+  padding-bottom: 1px;
 }
 
 .cleaner-editor {
@@ -2390,7 +2524,8 @@ td select {
 
 .cleaner-editor textarea {
   width: 100%;
-  min-height: 300px;
+  min-height: 0;
+  height: 100%;
   resize: none;
   border: 1px solid #2c4e75;
   border-radius: 8px;
@@ -2497,6 +2632,13 @@ td select {
 .regex-index strong {
   margin-bottom: 6px;
   color: #f1f7ff;
+}
+
+.regex-index > span {
+  margin: -2px 0 6px;
+  color: #89a5c5;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .regex-index a {
@@ -2699,7 +2841,11 @@ td select {
   .workspace-tab,
   .feature-content,
   .setting-toggle,
-  .setting-toggle span {
+  .setting-toggle span,
+  .rule-import-backdrop,
+  .rule-import-modal,
+  .detected-sheet td,
+  .clipboard-watch-indicator {
     animation: none;
     transition: none;
   }

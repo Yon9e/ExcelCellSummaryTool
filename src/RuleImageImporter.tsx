@@ -1,4 +1,10 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type AnimationEvent as ReactAnimationEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -82,6 +88,8 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       : "可一次添加多张图片或继续读取剪贴板；选择截图后点击“识别图片”。",
   );
   const [error, setError] = useState("");
+  const [isClosing, setIsClosing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startId: string; target: SelectionTarget; moved: boolean } | null>(null);
 
   const activeScreenshot = useMemo(
@@ -356,6 +364,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
   function handleCellPointerDown(event: ReactPointerEvent, cell: DetectedSpreadsheetCell) {
     event.preventDefault();
     dragRef.current = { startId: cell.id, target: selectionTarget, moved: false };
+    setIsDragging(true);
   }
 
   function handleCellPointerEnter(event: ReactPointerEvent, cell: DetectedSpreadsheetCell) {
@@ -377,6 +386,29 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
         : toggleCellSelection(selected, cell.id));
     }
     dragRef.current = null;
+    setIsDragging(false);
+  }
+
+  function stopDragging() {
+    dragRef.current = null;
+    setIsDragging(false);
+  }
+
+  function requestClose() {
+    if (isClosing) {
+      return;
+    }
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      onClose();
+      return;
+    }
+    setIsClosing(true);
+  }
+
+  function finishCloseAnimation(event: ReactAnimationEvent<HTMLDivElement>) {
+    if (isClosing && event.target === event.currentTarget) {
+      onClose();
+    }
   }
 
   function confirmImport() {
@@ -407,10 +439,15 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
       sheet_value: sheetValue.trim(),
       cell: cell.trim().toUpperCase(),
     })));
+    requestClose();
   }
 
   return (
-    <div className="modal-backdrop rule-import-backdrop" role="presentation">
+    <div
+      className={`modal-backdrop rule-import-backdrop${isClosing ? " is-closing" : ""}`}
+      role="presentation"
+      onAnimationEnd={finishCloseAnimation}
+    >
       <div className="rule-import-modal" role="dialog" aria-modal="true" aria-labelledby="rule-import-title">
         <header className="rule-import-heading">
           <div>
@@ -418,7 +455,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
             <h3 id="rule-import-title">从 Excel 截图选择单元格</h3>
             <p>识别全部可见单元格，再点击或拖动选择输出列名和目标数据。</p>
           </div>
-          <button className="icon-button" onClick={onClose} title="关闭"><X size={20} /></button>
+          <button className="icon-button" onClick={requestClose} title="关闭"><X size={20} /></button>
         </header>
 
         <div className="rule-import-command-bar">
@@ -525,7 +562,11 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
             </div>
             <div className="detected-sheet-wrap">
               {analysis?.spreadsheet.cells.length ? (
-                <table className="detected-sheet" onPointerLeave={() => { dragRef.current = null; }}>
+                <table
+                  className={`detected-sheet${isDragging ? " is-dragging" : ""}`}
+                  onPointerLeave={stopDragging}
+                  onPointerCancel={stopDragging}
+                >
                   <thead><tr><th className="sheet-corner" />{analysis.spreadsheet.columns.map((column) => <th key={column.label}>{column.label}</th>)}</tr></thead>
                   <tbody>{analysis.spreadsheet.rows.map((row) => (
                     <tr key={row.number}>
@@ -611,7 +652,7 @@ export function RuleImageImporter({ onClose, onAppend }: RuleImageImporterProps)
         </div>
 
         <footer className="modal-actions">
-          <button className="soft-button" onClick={onClose}>取消</button>
+          <button className="soft-button" onClick={requestClose}>取消</button>
           <button className="primary-button" disabled={busy} onClick={confirmImport}>追加到规则配置</button>
         </footer>
       </div>

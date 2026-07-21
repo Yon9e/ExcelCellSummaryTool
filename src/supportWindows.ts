@@ -1,3 +1,5 @@
+import type { WorkspaceKey } from "./types";
+
 export type SupportView = "main" | "help" | "regex";
 
 export interface SupportWindowConfig {
@@ -13,12 +15,16 @@ export interface SupportWindowConfig {
   backgroundColor: string;
 }
 
-export function getSupportWindowConfig(view: Exclude<SupportView, "main">): SupportWindowConfig {
+export function getSupportWindowConfig(
+  view: Exclude<SupportView, "main">,
+  returnWorkspace: WorkspaceKey = "summary",
+): SupportWindowConfig {
+  const url = `/?${new URLSearchParams({ view, return: returnWorkspace }).toString()}`;
   const configs: Record<Exclude<SupportView, "main">, SupportWindowConfig> = {
     help: {
       label: "help-manual",
       title: "使用手册",
-      url: "/?view=help",
+      url,
       width: 1120,
       height: 780,
       visible: false,
@@ -30,7 +36,7 @@ export function getSupportWindowConfig(view: Exclude<SupportView, "main">): Supp
     regex: {
       label: "regex-manual",
       title: "正则表达式教程",
-      url: "/?view=regex",
+      url,
       width: 1180,
       height: 820,
       visible: false,
@@ -51,7 +57,22 @@ export function getSupportViewFromSearch(search: string): SupportView {
   return "main";
 }
 
+export function isWorkspaceKey(value: unknown): value is WorkspaceKey {
+  return value === "summary" || value === "ocr" || value === "text-cleaner" || value === "about";
+}
+
+export function getWorkspaceFromSearch(search: string): WorkspaceKey {
+  const workspace = new URLSearchParams(search).get("workspace");
+  return isWorkspaceKey(workspace) ? workspace : "summary";
+}
+
+export function getSupportReturnWorkspaceFromSearch(search: string): WorkspaceKey {
+  const workspace = new URLSearchParams(search).get("return");
+  return isWorkspaceKey(workspace) ? workspace : "summary";
+}
+
 export function getMainViewPath(currentUrl: string): string {
   const current = new URL(currentUrl, "https://financial-tool.local");
-  return current.pathname || "/";
+  const workspace = getSupportReturnWorkspaceFromSearch(current.search);
+  return workspace === "summary" ? "/" : `/?workspace=${workspace}`;
 }

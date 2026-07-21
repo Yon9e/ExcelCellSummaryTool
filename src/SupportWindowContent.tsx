@@ -1,19 +1,58 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Search } from "lucide-react";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauriRuntime } from "./browserPreview";
 import { getHelpManual } from "./helpManual";
 import { regexManualSections } from "./regexManual";
-import { getMainViewPath, type SupportView } from "./supportWindows";
+import {
+  getMainViewPath,
+  getSupportReturnWorkspaceFromSearch,
+  isWorkspaceKey,
+  type SupportView,
+} from "./supportWindows";
+import type { WorkspaceKey } from "./types";
 
 export function SupportWindowContent({ view }: { view: Exclude<SupportView, "main"> }) {
   const [query, setQuery] = useState("");
+  const [returnWorkspace, setReturnWorkspace] = useState<WorkspaceKey>(() => (
+    getSupportReturnWorkspaceFromSearch(window.location.search)
+  ));
+  const returnLabel = {
+    summary: "返回汇总",
+    ocr: "返回截图识字",
+    "text-cleaner": "返回文本清洗",
+    about: "返回关于",
+  }[returnWorkspace];
   useEffect(() => {
     if (!isTauriRuntime()) {
       return;
     }
     const window = getCurrentWindow();
     void window.show().then(() => window.setFocus());
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<WorkspaceKey>("support-return-workspace", (event) => {
+      if (isWorkspaceKey(event.payload)) {
+        setReturnWorkspace(event.payload);
+      }
+    }).then((nextUnlisten) => {
+      if (active) {
+        unlisten = nextUnlisten;
+      } else {
+        nextUnlisten();
+      }
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
   }, []);
 
   const manual = getHelpManual();
@@ -37,6 +76,11 @@ export function SupportWindowContent({ view }: { view: Exclude<SupportView, "mai
 
   async function returnToMain(): Promise<void> {
     if (isTauriRuntime()) {
+      try {
+        await emitTo<WorkspaceKey>("main", "navigate-workspace", returnWorkspace);
+      } catch {
+        // 主窗口事件发送失败时，仍继续关闭当前辅助窗口。
+      }
       try {
         await getCurrentWindow().close();
         return;
@@ -63,13 +107,14 @@ export function SupportWindowContent({ view }: { view: Exclude<SupportView, "mai
             </label>
             <button className="support-return-button" type="button" onClick={() => void returnToMain()}>
               <ArrowLeft size={18} />
-              返回主界面
+              {returnLabel}
             </button>
           </div>
         </header>
         <div className="regex-manual-layout">
           <nav className="regex-index" aria-label="正则教程目录">
-            <strong>按任务查找</strong>
+            <strong>常用清洗任务</strong>
+            <span>按需要处理的问题查找</span>
             {regexManualSections.map((section) => (
               <a key={section.id} href={`#${section.id}`}>{section.title}</a>
             ))}
@@ -108,7 +153,7 @@ export function SupportWindowContent({ view }: { view: Exclude<SupportView, "mai
         </div>
         <button className="support-return-button" type="button" onClick={() => void returnToMain()}>
           <ArrowLeft size={18} />
-          返回主界面
+          {returnLabel}
         </button>
       </header>
       <div className="help-manual-body support-manual-body">

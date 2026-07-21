@@ -26,10 +26,6 @@ pub fn read() -> Result<ClipboardTextPayload, String> {
         _ => None,
     };
 
-    if text.is_empty() && html.is_none() {
-        return Err("剪贴板中没有可读取的文本或 HTML 内容。".to_string());
-    }
-
     Ok(ClipboardTextPayload { text, html })
 }
 
@@ -47,7 +43,21 @@ pub fn write(text: String) -> Result<(), String> {
         .map_err(|error| format!("写入系统剪贴板失败：{error}"))
 }
 
+#[cfg(target_os = "windows")]
+pub fn write_if_sequence(text: String, expected_sequence: u32) -> Result<Option<u32>, String> {
+    if crate::ocr::clipboard_sequence_number() != expected_sequence {
+        return Ok(None);
+    }
+    write(text)?;
+    Ok(Some(crate::ocr::clipboard_sequence_number()))
+}
+
 #[cfg(not(target_os = "windows"))]
 pub fn write(_text: String) -> Result<(), String> {
+    Err("剪贴板文本清洗目前仅支持 Windows。".to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn write_if_sequence(_text: String, _expected_sequence: u32) -> Result<Option<u32>, String> {
     Err("剪贴板文本清洗目前仅支持 Windows。".to_string())
 }

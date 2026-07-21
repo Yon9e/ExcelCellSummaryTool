@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm, message, open, save } from "@tauri-apps/plugin-dialog";
 import {
@@ -50,6 +50,8 @@ import { RuleImageImporter } from "./RuleImageImporter";
 import { TextCleanerPage } from "./TextCleanerPage";
 import { ocrTabs, summaryTabs, workspacePages } from "./navigation";
 import {
+  getWorkspaceFromSearch,
+  isWorkspaceKey,
   getSupportViewFromSearch,
   getSupportWindowConfig,
   type SupportView,
@@ -123,7 +125,7 @@ function App() {
     return <SupportWindowContent view={supportView} />;
   }
 
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>("summary");
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceKey>(() => getWorkspaceFromSearch(window.location.search));
   const [activeSummaryTab, setActiveSummaryTab] = useState<SummaryTabKey>("source");
   const [activeOcrTab, setActiveOcrTab] = useState<OcrTabKey>("capture");
   const [schemes, setSchemes] = useState<Scheme[]>([]);
@@ -187,6 +189,11 @@ function App() {
       }
     });
     const unlisteners = [
+      listen<WorkspaceKey>("navigate-workspace", (event) => {
+        if (isWorkspaceKey(event.payload)) {
+          setActiveWorkspace(event.payload);
+        }
+      }),
       listen<LogEvent>("summary-log", (event) => {
         appendLog(event.payload.level, event.payload.message);
       }),
@@ -361,7 +368,6 @@ function App() {
   function appendImportedRules(importedRules: Rule[]) {
     setRules((items) => [...items, ...importedRules]);
     setSelectedRuleIndex(rules.length);
-    setShowRuleImageImporter(false);
     appendLog("DONE", `已从 Excel 截图追加 ${importedRules.length} 条规则。`);
   }
 
@@ -509,14 +515,18 @@ function App() {
     await executeSummary(request);
   }
 
-  async function openSupportWindow(view: Exclude<SupportView, "main">) {
-    const config = getSupportWindowConfig(view);
+  async function openSupportWindow(
+    view: Exclude<SupportView, "main">,
+    returnWorkspace: WorkspaceKey = activeWorkspace,
+  ) {
+    const config = getSupportWindowConfig(view, returnWorkspace);
     if (browserPreview) {
       window.open(config.url, "_blank", "noopener,noreferrer");
       return;
     }
     const existing = await WebviewWindow.getByLabel(config.label);
     if (existing) {
+      await emitTo<WorkspaceKey>(config.label, "support-return-workspace", returnWorkspace);
       await existing.show();
       await existing.unminimize();
       await existing.setFocus();
@@ -570,7 +580,7 @@ function App() {
             <p>Excel 定向汇总、截图识字与剪贴板清洗</p>
           </div>
           <div className="window-actions">
-            <button className="soft-button" onClick={() => void openSupportWindow("help")}>
+            <button className="soft-button" onClick={() => void openSupportWindow("help", activeWorkspace)}>
               <Info size={19} />
               帮助说明
             </button>
@@ -949,7 +959,7 @@ function App() {
             {activeWorkspace === "text-cleaner" && (
               <TextCleanerPage
                 onLog={appendLog}
-                onOpenRegexTutorial={() => void openSupportWindow("regex")}
+                onOpenRegexTutorial={() => void openSupportWindow("regex", "text-cleaner")}
               />
             )}
 
