@@ -17,7 +17,9 @@
 ## 技术栈
 
 - Tauri 2
-- React 19 + TypeScript
+- Vue 3 + TypeScript
+- Pinia + Element Plus
+- Vite
 - Rust
 - calamine + rust_xlsxwriter
 - Umi-OCR Rapid 2.1.5

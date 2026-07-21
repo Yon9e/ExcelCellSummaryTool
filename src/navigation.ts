@@ -8,14 +8,14 @@ import {
   ScanText,
   Settings2,
   SlidersHorizontal,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "@lucide/vue";
+import type { Component } from "vue";
 import type { OcrTabKey, SummaryTabKey, WorkspaceKey } from "./types";
 
 export interface NavigationItem<T extends string> {
   key: T;
   label: string;
-  icon: LucideIcon;
+  icon: Component;
 }
 
 export const workspacePages: NavigationItem<WorkspaceKey>[] = [

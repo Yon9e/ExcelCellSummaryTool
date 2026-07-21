@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapOcrItemsToSource, resolveDetectedColumnLabel, type OcrRegion } from "./RuleImageImporter";
+import { mapOcrItemsToSource, resolveDetectedColumnLabel, type OcrRegion } from "./spreadsheetImageAnalysis";
 import type { OcrTextItem } from "./types";
 
 describe("mapOcrItemsToSource", () => {
