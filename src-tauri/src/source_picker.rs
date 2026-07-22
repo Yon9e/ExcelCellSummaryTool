@@ -9,11 +9,15 @@ use std::collections::HashSet;
 #[cfg(target_os = "windows")]
 use std::io::Read;
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
 use std::process::{Command, Stdio};
 #[cfg(target_os = "windows")]
 use std::time::{Duration, Instant};
 
 const EXCEL_EXTENSIONS: &[&str] = &["xlsx", "xlsm", "xltx", "xltm"];
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SourcePickerEntry {
@@ -207,6 +211,7 @@ fn list_quick_access(script_path: Option<&Path>) -> Vec<SourcePickerTreeEntry> {
         return Vec::new();
     };
     let mut child = match Command::new(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+        .creation_flags(quick_access_process_creation_flags())
         .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-STA", "-File"])
         .arg(script_path)
         .stdout(Stdio::piped())
@@ -246,6 +251,11 @@ fn list_quick_access(script_path: Option<&Path>) -> Vec<SourcePickerTreeEntry> {
         return Vec::new();
     };
     parse_quick_access_output(&output)
+}
+
+#[cfg(target_os = "windows")]
+fn quick_access_process_creation_flags() -> u32 {
+    CREATE_NO_WINDOW
 }
 
 #[cfg(target_os = "windows")]
@@ -418,5 +428,15 @@ mod tests {
         assert_eq!(entries[0].path, root.to_string_lossy());
 
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn quick_access_powershell_is_started_without_console_window() {
+        assert_ne!(
+            quick_access_process_creation_flags() & CREATE_NO_WINDOW,
+            0,
+            "读取快速访问不能为 powershell.exe 分配可见控制台"
+        );
     }
 }
