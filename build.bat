@@ -38,7 +38,7 @@ if errorlevel 1 goto fail
 if errorlevel 1 goto fail
 
 echo Tauri build completed.
-echo portable exe: release\portable\ExcelCellSummaryTool\ExcelCellSummaryTool.exe
+echo portable exe: release\portable\ExcelCellSummaryTool\Financial Tool.exe
 echo portable zip: release\ExcelCellSummaryTool-v0.2.4-win64-portable.zip
 echo setup exe: release\ExcelCellSummaryTool-v0.2.4-win64-setup.exe
 exit /b 0

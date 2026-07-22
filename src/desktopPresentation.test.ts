@@ -1,0 +1,31 @@
+import { describe, expect, it } from "vitest";
+// @ts-expect-error Vitest 在 Node 环境运行，项目生产构建不需要引入 Node 类型。
+import { readFileSync } from "fs";
+
+const tauriConfig = JSON.parse(
+  readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf-8"),
+);
+const indexHtml = readFileSync(new URL("../index.html", import.meta.url), "utf-8");
+const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf-8");
+const releaseScript = readFileSync(new URL("../scripts/make_release.ps1", import.meta.url), "utf-8");
+const auditScript = readFileSync(new URL("../scripts/audit_release.ps1", import.meta.url), "utf-8");
+
+describe("桌面端首帧与呈现规范", () => {
+  it("在前端加载前保持 Financial Tool 的深色首帧", () => {
+    expect(tauriConfig.app.windows[0].backgroundColor).toBe("#0e1b2d");
+    expect(indexHtml).toContain("background: #0e1b2d");
+    expect(indexHtml).toContain('class="app-startup"');
+  });
+
+  it("以统一的 14px 作为全部内容文字的字号", () => {
+    expect(styles).toContain("--content-font-size: 14px");
+    expect(styles).toContain("#root :where(");
+    expect(styles).toContain("button,");
+    expect(styles).toContain("font-size: var(--content-font-size)");
+  });
+
+  it("便携版与审计都使用 Financial Tool.exe", () => {
+    expect(releaseScript).toContain('"Financial Tool.exe"');
+    expect(auditScript).toContain('"Financial Tool.exe"');
+  });
+});

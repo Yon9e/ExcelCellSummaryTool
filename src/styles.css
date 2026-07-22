@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --content-font-size: 14px;
   font-family:
     Inter,
     "Microsoft YaHei UI",
@@ -116,6 +117,7 @@ button:disabled {
   margin: 4px 0 0;
   font-size: 12px;
   font-weight: 560;
+  white-space: nowrap;
 }
 
 .nav-list {
@@ -3066,4 +3068,34 @@ body.rule-pointer-dragging * {
   font-size: 13px;
   font-weight: 560;
   line-height: 1.45;
+}
+
+/* 标题保留层级，所有可操作与阅读内容使用同一字号。 */
+#root :where(
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  small,
+  p,
+  span,
+  li,
+  a,
+  td,
+  th,
+  code,
+  pre,
+  .el-button,
+  .el-checkbox,
+  .el-radio,
+  .el-form-item__label,
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-select__selected-item,
+  .el-message,
+  .el-message-box,
+  .el-dialog
+) {
+  font-size: var(--content-font-size);
 }

@@ -32,7 +32,7 @@
 - 安装版：`ExcelCellSummaryTool-v0.2.6-win64-setup.exe`
 - 免安装版：`ExcelCellSummaryTool-v0.2.6-win64-portable.zip`
 
-安装版直接运行安装程序。免安装版必须先完整解压，再运行 `ExcelCellSummaryTool.exe`；不要只从压缩包中单独取出 exe，因为 OCR 需要同目录的 `umi-ocr` 运行文件。
+安装版直接运行安装程序。免安装版必须先完整解压，再运行 `Financial Tool.exe`；不要只从压缩包中单独取出 exe，因为 OCR 需要同目录的 `umi-ocr` 运行文件。
 
 ### Excel 汇总
 
@@ -100,7 +100,7 @@ Set-Location .\src-tauri
 
 产物：
 
-- `release\portable\ExcelCellSummaryTool\ExcelCellSummaryTool.exe`
+- `release\portable\ExcelCellSummaryTool\Financial Tool.exe`
 - `release\portable\ExcelCellSummaryTool\umi-ocr\Umi-OCR.exe`
 - `release\ExcelCellSummaryTool-v0.2.6-win64-portable.zip`
 - `release\ExcelCellSummaryTool-v0.2.6-win64-setup.exe`

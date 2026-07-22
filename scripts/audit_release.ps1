@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ReleaseDir = Join-Path $ProjectRoot "release"
 $PortableRoot = Join-Path $ReleaseDir "$PortableDirectoryName\ExcelCellSummaryTool"
-$PortableExe = Join-Path $PortableRoot "ExcelCellSummaryTool.exe"
+$PortableExe = Join-Path $PortableRoot "Financial Tool.exe"
 $PortableOcrRoot = Join-Path $PortableRoot "umi-ocr"
 $PortableZip = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.zip"
 $SetupExe = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-setup.exe"
@@ -135,7 +135,7 @@ if ($ForbiddenUserFiles.Count -gt 0) {
 
 $RuntimeSourceFiles = @(Get-ChildItem -LiteralPath $RuntimeSource -File -Recurse -Force)
 $ExpectedPortableFiles = @(
-    "ExcelCellSummaryTool.exe",
+    "Financial Tool.exe",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "list_quick_access.ps1"

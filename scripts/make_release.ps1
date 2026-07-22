@@ -76,7 +76,7 @@ if (Test-Path -LiteralPath (Join-Path $ReleaseDir $PortableDirectoryName)) {
 }
 New-Item -ItemType Directory -Force -Path $PortableStage | Out-Null
 
-Copy-Item -LiteralPath $PortableExe -Destination (Join-Path $PortableStage "ExcelCellSummaryTool.exe") -Force
+Copy-Item -LiteralPath $PortableExe -Destination (Join-Path $PortableStage "Financial Tool.exe") -Force
 Copy-Item -LiteralPath $OcrRuntimeSource -Destination (Join-Path $PortableStage "umi-ocr") -Recurse -Force
 Copy-Item -LiteralPath $LicenseSource -Destination (Join-Path $PortableStage "LICENSE") -Force
 Copy-Item -LiteralPath $ThirdPartyNoticeSource -Destination (Join-Path $PortableStage "THIRD_PARTY_NOTICES.md") -Force
@@ -93,6 +93,9 @@ $notes = @(
     "# Financial Tool 财务工具箱 v$Version",
     "",
     "## 本版更新",
+    "- 桌面端启动首帧改为深色品牌底色，并在前端加载期间显示启动提示，避免白屏。",
+    "- 按钮、菜单、表格、输入框、提示、弹窗和正文统一为 14px 内容字号；标题保留层级。",
+    "- 免安装版主程序重命名为 Financial Tool.exe。",
     "- 数据源配置改为统一文件浏览页面，在同一列表中显示文件夹与 Excel 文件，支持混合多选和跨目录累计选择。",
     "- 新增 Windows 快速访问、常用位置和磁盘目录树；支持逐级展开、拖动连续选择、全选当前和反选当前。",
     "- 所选文件夹会递归扫描全部子文件夹；混合数据源自动去重并阻止源文件被覆盖为输出文件。",
@@ -127,7 +130,7 @@ $hashLines += "$(Get-Sha256Hex -Path $PortableZip)  ExcelCellSummaryTool-v$Versi
 $hashLines += "$(Get-Sha256Hex -Path $SetupTarget)  ExcelCellSummaryTool-v$Version-win64-setup.exe"
 $hashLines | Set-Content -LiteralPath $HashPath -Encoding ASCII
 
-$PortableExeTarget = Join-Path $PortableStage 'ExcelCellSummaryTool.exe'
+$PortableExeTarget = Join-Path $PortableStage 'Financial Tool.exe'
 Write-Host "portable exe: $PortableExeTarget"
 Write-Host "portable zip: $PortableZip"
 Write-Host "setup exe: $SetupTarget"

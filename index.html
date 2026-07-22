@@ -4,9 +4,53 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Financial Tool 财务工具箱</title>
+    <style>
+      html,
+      body,
+      #root {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        background: #0e1b2d;
+      }
+
+      .app-startup {
+        display: grid;
+        min-height: 100vh;
+        place-content: center;
+        gap: 12px;
+        color: #dceaff;
+        background:
+          radial-gradient(circle at 78% 0%, rgba(0, 190, 170, 0.18), transparent 34%),
+          linear-gradient(135deg, #14254a 0%, #0f1d31 46%, #112638 100%);
+        font: 600 14px/1.4 "Microsoft YaHei UI", "Segoe UI", sans-serif;
+        text-align: center;
+      }
+
+      .app-startup__mark {
+        width: 36px;
+        height: 36px;
+        justify-self: center;
+        border: 3px solid rgba(94, 167, 255, 0.25);
+        border-top-color: #56d3e9;
+        border-radius: 50%;
+        animation: app-startup-spin 700ms linear infinite;
+      }
+
+      @keyframes app-startup-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="app-startup" role="status" aria-live="polite">
+        <div class="app-startup__mark" aria-hidden="true"></div>
+        <span>正在启动 Financial Tool…</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
