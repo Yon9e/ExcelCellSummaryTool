@@ -10,6 +10,8 @@ describe("getAboutContent", () => {
       expect.arrayContaining(["主作者", "开源仓库", "意见反馈", "更新记录"]),
     );
     expect(allText).toContain("GNU GPL v3.0");
+    expect(about.version).toBe("v0.2.6");
+    expect(allText).toContain("v0.2.6");
     expect(allText).not.toContain("赞助支持");
   });
 });

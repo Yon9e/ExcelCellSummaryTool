@@ -14,7 +14,7 @@ export interface AboutContent {
 export function getAboutContent(): AboutContent {
   return {
     title: "Financial Tool 财务工具箱",
-    version: "v0.2.4",
+    version: "v0.2.6",
     description: "Excel 定向汇总、截图识字与图片规则定位",
     cards: [
       { title: "主作者", description: "Yon9e", detail: "个人发布与维护" },
@@ -30,8 +30,8 @@ export function getAboutContent(): AboutContent {
       },
       {
         title: "更新记录",
-        description: "v0.2.4",
-        detail: "压缩界面密度，并优化窄窗口下的响应式布局",
+        description: "v0.2.6",
+        detail: "统一文件选择、优化桌面启动与发布体验",
       },
     ],
   };

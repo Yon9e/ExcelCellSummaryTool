@@ -9,6 +9,10 @@ const indexHtml = readFileSync(new URL("../index.html", import.meta.url), "utf-8
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf-8");
 const releaseScript = readFileSync(new URL("../scripts/make_release.ps1", import.meta.url), "utf-8");
 const auditScript = readFileSync(new URL("../scripts/audit_release.ps1", import.meta.url), "utf-8");
+const contentTypographyRule =
+  styles.match(/#root :where\([\s\S]*?\)\s*\{\s*font-size: var\(--content-font-size\);\s*\}/)?.[0] ?? "";
+const dragOverlayTypographyRule =
+  styles.match(/\.rule-drag-overlay,\s*\.rule-drag-overlay :where\([\s\S]*?\)\s*\{\s*font-size: var\(--content-font-size\);\s*\}/)?.[0] ?? "";
 
 describe("桌面端首帧与呈现规范", () => {
   it("在前端加载前保持 Financial Tool 的深色首帧", () => {
@@ -19,9 +23,11 @@ describe("桌面端首帧与呈现规范", () => {
 
   it("以统一的 14px 作为全部内容文字的字号", () => {
     expect(styles).toContain("--content-font-size: 14px");
-    expect(styles).toContain("#root :where(");
-    expect(styles).toContain("button,");
-    expect(styles).toContain("font-size: var(--content-font-size)");
+    expect(contentTypographyRule).toContain("button,");
+    expect(contentTypographyRule).toContain("strong,");
+    expect(contentTypographyRule).toContain("time,");
+    expect(dragOverlayTypographyRule).toContain(".rule-drag-overlay,");
+    expect(dragOverlayTypographyRule).toContain("span,");
   });
 
   it("便携版与审计都使用 Financial Tool.exe", () => {

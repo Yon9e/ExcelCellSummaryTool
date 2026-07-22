@@ -3072,6 +3072,7 @@ body.rule-pointer-dragging * {
 
 /* 标题保留层级，所有可操作与阅读内容使用同一字号。 */
 #root :where(
+  div,
   button,
   input,
   select,
@@ -3080,6 +3081,11 @@ body.rule-pointer-dragging * {
   small,
   p,
   span,
+  strong,
+  b,
+  em,
+  i,
+  time,
   li,
   a,
   td,
@@ -3097,5 +3103,11 @@ body.rule-pointer-dragging * {
   .el-message-box,
   .el-dialog
 ) {
+  font-size: var(--content-font-size);
+}
+
+/* 拖动浮层由 Teleport 直接挂到 body，同样纳入内容字号规则。 */
+.rule-drag-overlay,
+.rule-drag-overlay :where(div, p, span, strong, b, em, i, time, small, code, pre) {
   font-size: var(--content-font-size);
 }
