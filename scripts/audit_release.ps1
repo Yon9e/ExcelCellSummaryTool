@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.2.5",
+    [string]$Version = "0.2.6",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -19,6 +19,8 @@ $LicenseFile = Join-Path $ProjectRoot "LICENSE"
 $ThirdPartyNotice = Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md"
 $ThirdPartyLicensesRoot = Join-Path $ProjectRoot "THIRD_PARTY_LICENSES"
 $PortableThirdPartyLicensesRoot = Join-Path $PortableRoot "THIRD_PARTY_LICENSES"
+$QuickAccessScript = Join-Path $ProjectRoot "src-tauri\resources\list_quick_access.ps1"
+$PortableQuickAccessScript = Join-Path $PortableRoot "list_quick_access.ps1"
 $RuntimeSource = Join-Path $ProjectRoot "third_party\umi-ocr\runtime"
 $RuntimeManifest = Join-Path $ProjectRoot "third_party\umi-ocr\manifest.json"
 
@@ -41,6 +43,8 @@ $RequiredFiles = @(
     $HashFile,
     $LicenseFile,
     $ThirdPartyNotice,
+    $QuickAccessScript,
+    $PortableQuickAccessScript,
     $RuntimeManifest
 )
 $RequiredFiles += @($ThirdPartyLicenseFiles | Select-Object -ExpandProperty FullName)
@@ -133,7 +137,8 @@ $RuntimeSourceFiles = @(Get-ChildItem -LiteralPath $RuntimeSource -File -Recurse
 $ExpectedPortableFiles = @(
     "ExcelCellSummaryTool.exe",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "list_quick_access.ps1"
 )
 $ExpectedPortableFiles += @(
     $ThirdPartyLicenseFiles | ForEach-Object { "THIRD_PARTY_LICENSES\$($_.Name)" }
@@ -167,7 +172,8 @@ foreach ($SourceFile in $RuntimeSourceFiles) {
 $CriticalPairs = @(
     @((Join-Path $RuntimeSource "Umi-OCR.exe"), (Join-Path $PortableOcrRoot "Umi-OCR.exe")),
     @($LicenseFile, (Join-Path $PortableRoot "LICENSE")),
-    @($ThirdPartyNotice, (Join-Path $PortableRoot "THIRD_PARTY_NOTICES.md"))
+    @($ThirdPartyNotice, (Join-Path $PortableRoot "THIRD_PARTY_NOTICES.md")),
+    @($QuickAccessScript, $PortableQuickAccessScript)
 )
 foreach ($ThirdPartyLicenseFile in $ThirdPartyLicenseFiles) {
     $CriticalPairs += ,@(

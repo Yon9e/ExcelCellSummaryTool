@@ -34,13 +34,3 @@ export function getRuleDragOverlayLeft(pointerX: number, grabOffsetX: number): n
 export function getRuleDragOriginStyle(isDragging: boolean): { opacity: number } | undefined {
   return isDragging ? { opacity: 0 } : undefined;
 }
-
-interface RuleDragOverEvent {
-  preventDefault: () => void;
-  dataTransfer: { dropEffect: string } | null;
-}
-
-export function acceptRuleDragOver(event: RuleDragOverEvent): void {
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-}

@@ -1,6 +1,6 @@
 [package]
 name = "excel-cell-summary-tool"
-version = "0.2.5"
+version = "0.2.6"
 description = "Financial Tool 财务工具箱"
 authors = ["Yon9e"]
 license = "GPL-3.0-only"

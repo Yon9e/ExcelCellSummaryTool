@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.2.5",
+    [string]$Version = "0.2.6",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -18,6 +18,7 @@ $OcrRuntimeSource = Join-Path $ProjectRoot "third_party\umi-ocr\runtime"
 $LicenseSource = Join-Path $ProjectRoot "LICENSE"
 $ThirdPartyNoticeSource = Join-Path $ProjectRoot "THIRD_PARTY_NOTICES.md"
 $ThirdPartyLicensesSource = Join-Path $ProjectRoot "THIRD_PARTY_LICENSES"
+$QuickAccessScriptSource = Join-Path $ProjectRoot "src-tauri\resources\list_quick_access.ps1"
 
 function Get-Sha256Hex {
     param(
@@ -52,6 +53,9 @@ foreach ($RequiredDocument in @($LicenseSource, $ThirdPartyNoticeSource)) {
         throw "Release document not found: $RequiredDocument"
     }
 }
+if (-not (Test-Path -LiteralPath $QuickAccessScriptSource -PathType Leaf)) {
+    throw "Quick Access helper script not found: $QuickAccessScriptSource"
+}
 if (-not (Test-Path -LiteralPath $ThirdPartyLicensesSource -PathType Container)) {
     throw "Third-party license directory not found: $ThirdPartyLicensesSource"
 }
@@ -77,6 +81,7 @@ Copy-Item -LiteralPath $OcrRuntimeSource -Destination (Join-Path $PortableStage 
 Copy-Item -LiteralPath $LicenseSource -Destination (Join-Path $PortableStage "LICENSE") -Force
 Copy-Item -LiteralPath $ThirdPartyNoticeSource -Destination (Join-Path $PortableStage "THIRD_PARTY_NOTICES.md") -Force
 Copy-Item -LiteralPath $ThirdPartyLicensesSource -Destination (Join-Path $PortableStage "THIRD_PARTY_LICENSES") -Recurse -Force
+Copy-Item -LiteralPath $QuickAccessScriptSource -Destination (Join-Path $PortableStage "list_quick_access.ps1") -Force
 Copy-Item -LiteralPath $SetupSource -Destination $SetupTarget -Force
 
 if (Test-Path -LiteralPath $PortableZip) {
@@ -88,12 +93,12 @@ $notes = @(
     "# Financial Tool 财务工具箱 v$Version",
     "",
     "## 本版更新",
-    "- 数据源支持直接选择单个 Excel 文件或选择文件夹，并在界面标明支持格式。",
-    "- 方案管理改为新建、载入和保存流程；方案重命名需要确认，并显示最近保存时间。",
-    "- 优化规则拖动排序：拖动行采用半透明玻璃效果、随鼠标移动，相邻行平滑让位。",
-    "- 修复拖动排序闪动、行重叠、排序失效以及鼠标禁止符号问题。",
-    "- 执行区增加预检与汇总进度、本次任务预计时间和剩余时间。",
-    "- 优化桌面窗口尺寸变化时的组件密度与响应式布局。",
+    "- 数据源配置改为统一文件浏览页面，在同一列表中显示文件夹与 Excel 文件，支持混合多选和跨目录累计选择。",
+    "- 新增 Windows 快速访问、常用位置和磁盘目录树；支持逐级展开、拖动连续选择、全选当前和反选当前。",
+    "- 所选文件夹会递归扫描全部子文件夹；混合数据源自动去重并阻止源文件被覆盖为输出文件。",
+    "- 规则排序由原生 HTML5 拖拽改为 Pointer Events，提高 Tauri WebView 与浏览器兼容性。",
+    "- 修复拖动手柄出现禁止符号、拖动无反应和松手后顺序不变的问题。",
+    "- 保留半透明玻璃浮动行、随鼠标移动及相邻行平滑让位效果。",
     "",
     "## 既有功能",
     "- 支持 .xlsx / .xlsm / .xltx / .xltm 文件定向汇总。",

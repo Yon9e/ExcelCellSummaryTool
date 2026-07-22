@@ -14,6 +14,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             load_schemes,
+            list_source_picker_entries,
+            list_source_picker_directories,
+            list_source_picker_navigation,
             save_scheme,
             delete_scheme,
             path_exists,
@@ -49,13 +52,14 @@ mod file_filter;
 mod models;
 mod ocr;
 mod scheme_store;
+mod source_picker;
 
 use std::path::{Path, PathBuf};
 
 use models::{
     CurrentFileEvent, LogEvent, ProgressEvent, Scheme, SheetConflict, SummaryRequest, SummaryResult,
 };
-use tauri::{Emitter, Window};
+use tauri::{Emitter, Manager, Window};
 
 #[tauri::command]
 fn load_schemes() -> Result<Vec<Scheme>, String> {
@@ -75,6 +79,59 @@ fn delete_scheme(name: String) -> Result<bool, String> {
 #[tauri::command]
 fn path_exists(path: String) -> bool {
     Path::new(path.trim()).exists()
+}
+
+#[tauri::command]
+async fn list_source_picker_entries(
+    path: Option<String>,
+) -> Result<source_picker::SourcePickerListing, String> {
+    tauri::async_runtime::spawn_blocking(move || source_picker::list_entries(path.as_deref()))
+        .await
+        .map_err(|error| format!("读取文件浏览器目录失败：{error}"))?
+}
+
+#[tauri::command]
+async fn list_source_picker_directories(
+    path: Option<String>,
+) -> Result<Vec<source_picker::SourcePickerTreeEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || source_picker::list_directories(path.as_deref()))
+        .await
+        .map_err(|error| format!("读取目录树失败：{error}"))?
+}
+
+#[tauri::command]
+async fn list_source_picker_navigation(
+    app: tauri::AppHandle,
+) -> Result<source_picker::SourcePickerNavigation, String> {
+    let quick_access_script = find_quick_access_script(&app);
+    tauri::async_runtime::spawn_blocking(move || {
+        source_picker::list_navigation(quick_access_script.as_deref())
+    })
+    .await
+    .map_err(|error| format!("读取文件浏览器导航失败：{error}"))
+}
+
+fn find_quick_access_script(app: &tauri::AppHandle) -> Option<PathBuf> {
+    const SCRIPT_NAME: &str = "list_quick_access.ps1";
+    let mut candidates = Vec::new();
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(parent) = current_exe.parent() {
+            candidates.push(parent.join(SCRIPT_NAME));
+            candidates.push(parent.join("resources").join(SCRIPT_NAME));
+        }
+    }
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join(SCRIPT_NAME));
+        candidates.push(resource_dir.join("resources").join(SCRIPT_NAME));
+    }
+    #[cfg(debug_assertions)]
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join(SCRIPT_NAME),
+    );
+
+    candidates.into_iter().find(|path| path.is_file())
 }
 
 #[tauri::command]

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  acceptRuleDragOver,
   findRuleDragTarget,
   getRuleDragOverlayLeft,
   getRuleDragOverlayTop,
@@ -37,21 +36,9 @@ describe("规则拖拽预览", () => {
     expect(getRuleDragOverlayLeft(240, 36)).toBe(204);
   });
 
-  it("源行仅变透明并继续保留原生拖拽生命周期", () => {
+  it("源行在指针拖动期间变透明", () => {
     expect(getRuleDragOriginStyle(true)).toEqual({ opacity: 0 });
     expect(getRuleDragOriginStyle(false)).toBeUndefined();
   });
 
-  it("拖动期间持续声明允许移动，避免鼠标显示禁止符号", () => {
-    let prevented = false;
-    const dataTransfer = { dropEffect: "none" };
-
-    acceptRuleDragOver({
-      preventDefault: () => { prevented = true; },
-      dataTransfer,
-    });
-
-    expect(prevented).toBe(true);
-    expect(dataTransfer.dropEffect).toBe("move");
-  });
 });

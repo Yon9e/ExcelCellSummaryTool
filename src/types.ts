@@ -15,6 +15,7 @@ export interface Scheme {
   name: string;
   updated_at: string;
   target_folder: string;
+  target_paths: string[];
   output_file: string;
   keyword: string;
   filter_mode: FilterMode;
@@ -23,6 +24,7 @@ export interface Scheme {
 
 export interface SummaryRequest {
   target_folder: string;
+  target_paths: string[];
   output_file: string;
   keyword: string;
   filter_mode: FilterMode;
@@ -34,6 +36,31 @@ export interface SummaryResult {
   output_path: string;
   total_files: number;
   processed_files: number;
+}
+
+export interface SourcePickerEntry {
+  name: string;
+  path: string;
+  is_directory: boolean;
+  modified_at: number | null;
+  size: number;
+}
+
+export interface SourcePickerListing {
+  current_path: string;
+  parent_path: string | null;
+  entries: SourcePickerEntry[];
+}
+
+export interface SourcePickerTreeEntry {
+  name: string;
+  path: string;
+}
+
+export interface SourcePickerNavigation {
+  quick_access: SourcePickerTreeEntry[];
+  common_locations: SourcePickerTreeEntry[];
+  drives: SourcePickerTreeEntry[];
 }
 
 export interface LogEvent {

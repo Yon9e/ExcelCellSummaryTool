@@ -15,13 +15,13 @@ if errorlevel 1 goto fail
 call npm run tauri:build
 if errorlevel 1 goto fail
 
-"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.2.5
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.2.6
 if errorlevel 1 goto fail
 
-"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\audit_release.ps1 -Version 0.2.5
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\audit_release.ps1 -Version 0.2.6
 if errorlevel 1 goto fail
 
-echo Tauri NSIS installer build completed: release\ExcelCellSummaryTool-v0.2.5-win64-setup.exe
+echo Tauri NSIS installer build completed: release\ExcelCellSummaryTool-v0.2.6-win64-setup.exe
 exit /b 0
 
 :fail

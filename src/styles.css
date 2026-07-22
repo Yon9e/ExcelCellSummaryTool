@@ -649,20 +649,16 @@ input::placeholder {
   gap: 10px;
 }
 
-.input-action.multi-action {
-  grid-template-columns: minmax(0, 1fr) auto;
+.input-action.source-action {
+  grid-template-columns: minmax(0, 1fr) 164px;
 }
 
-.path-picker-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.path-picker-actions .soft-button {
-  min-width: 112px;
+.source-picker-trigger {
+  min-width: 0;
   padding-inline: 12px;
 }
 
+.source-selection-field,
 .output-file-field {
   display: flex;
   min-width: 0;
@@ -673,6 +669,28 @@ input::placeholder {
   border: 1px solid rgba(87, 127, 184, 0.45);
   border-radius: 9px;
   background: rgba(11, 22, 38, 0.74);
+}
+
+.source-selection-field {
+  min-width: 0;
+  overflow: hidden;
+  color: #dce7f8;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-selection-field.is-placeholder {
+  color: #8295b2;
+  font-weight: 560;
+}
+
+.field-hint {
+  color: #8295b2;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.4;
 }
 
 .output-file-name {
@@ -766,6 +784,12 @@ td select {
 
 .drag-handle:active {
   cursor: grabbing;
+}
+
+body.rule-pointer-dragging,
+body.rule-pointer-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
 }
 
 .selected-row {
@@ -2888,8 +2912,8 @@ td select {
   .scheme-current > small { padding-bottom: 0; }
   .scheme-list-item { grid-template-columns: 24px minmax(0, 1fr) 76px; }
   .scheme-list-saved { grid-column: 2 / 4; }
-  .input-action.multi-action { grid-template-columns: 1fr; }
-  .path-picker-actions { justify-content: flex-start; }
+  .input-action.source-action { grid-template-columns: 1fr; }
+  .source-picker-trigger { justify-self: start; }
   .cleaner-options { padding: 10px; }
   .regex-option { grid-template-columns: max-content 32px minmax(0, 1fr); }
   .regex-flags { grid-column: 3; }

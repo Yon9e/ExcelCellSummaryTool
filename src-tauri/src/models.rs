@@ -60,6 +60,8 @@ pub struct Scheme {
     #[serde(default)]
     pub updated_at: String,
     pub target_folder: String,
+    #[serde(default, alias = "target_files")]
+    pub target_paths: Vec<String>,
     pub output_file: String,
     pub keyword: String,
     pub filter_mode: String,
@@ -72,10 +74,18 @@ impl Scheme {
             FILTER_MODE_EXCLUDE => FILTER_MODE_EXCLUDE,
             _ => FILTER_MODE_INCLUDE,
         };
+        let mut target_paths = Vec::new();
+        for path in &self.target_paths {
+            let path = path.trim().to_string();
+            if !path.is_empty() && !target_paths.contains(&path) {
+                target_paths.push(path);
+            }
+        }
         Self {
             name: self.name.trim().to_string(),
             updated_at: self.updated_at.trim().to_string(),
             target_folder: self.target_folder.trim().to_string(),
+            target_paths,
             output_file: self.output_file.trim().to_string(),
             keyword: self.keyword.trim().to_string(),
             filter_mode: filter_mode.to_string(),
@@ -94,6 +104,8 @@ impl Scheme {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SummaryRequest {
     pub target_folder: String,
+    #[serde(default, alias = "target_files")]
+    pub target_paths: Vec<String>,
     pub output_file: String,
     pub keyword: String,
     pub filter_mode: String,
@@ -259,5 +271,6 @@ mod tests {
 
         assert_eq!(scheme.name, "旧方案");
         assert!(scheme.updated_at.is_empty());
+        assert!(scheme.target_paths.is_empty());
     }
 }

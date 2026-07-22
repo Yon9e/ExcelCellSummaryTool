@@ -201,6 +201,40 @@ fn source_files_for_request(
     request: &SummaryRequest,
     output_path: &Path,
 ) -> Result<Vec<PathBuf>, String> {
+    if !request.target_paths.is_empty() {
+        let mut files: Vec<PathBuf> = Vec::new();
+        for selected_path in &request.target_paths {
+            let selected_path = Path::new(selected_path);
+            if selected_path.is_file() && paths_refer_to_same_file(selected_path, output_path) {
+                return Err(
+                    "选中的 Excel 文件不能同时作为输出文件，请选择其他输出路径。".to_string(),
+                );
+            }
+            let keyword = if selected_path.is_dir() {
+                request.keyword.as_str()
+            } else {
+                ""
+            };
+            for file_path in list_excel_files(selected_path, keyword, &request.filter_mode)? {
+                if paths_refer_to_same_file(&file_path, output_path) {
+                    continue;
+                }
+                if !files
+                    .iter()
+                    .any(|existing| paths_refer_to_same_file(existing, &file_path))
+                {
+                    files.push(file_path);
+                }
+            }
+        }
+        files.sort_by(|left, right| {
+            left.to_string_lossy()
+                .to_ascii_lowercase()
+                .cmp(&right.to_string_lossy().to_ascii_lowercase())
+        });
+        return Ok(files);
+    }
+
     let mut files = list_excel_files(
         &request.target_folder,
         &request.keyword,
@@ -490,6 +524,7 @@ mod tests {
         let output_path = root.join("汇总结果.xlsx");
         let request = SummaryRequest {
             target_folder: root.to_string_lossy().to_string(),
+            target_paths: Vec::new(),
             output_file: output_path.to_string_lossy().to_string(),
             keyword: "报表".to_string(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
@@ -543,6 +578,7 @@ mod tests {
 
         let request = SummaryRequest {
             target_folder: input_path.to_string_lossy().to_string(),
+            target_paths: Vec::new(),
             output_file: input_path.to_string_lossy().to_string(),
             keyword: String::new(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
@@ -558,6 +594,12 @@ mod tests {
         let conflict_error = collect_sheet_conflicts(&request, |_| {}).unwrap_err();
         assert!(conflict_error.contains("不能同时作为输出文件"));
 
+        let mut mixed_request = request.clone();
+        mixed_request.target_folder.clear();
+        mixed_request.target_paths = vec![input_path.to_string_lossy().to_string()];
+        let mixed_error = source_files_for_request(&mixed_request, &input_path).unwrap_err();
+        assert!(mixed_error.contains("不能同时作为输出文件"));
+
         let error = run_summary(request, |_| {}, |_| {}, |_| {}).unwrap_err();
         assert!(error.contains("不能同时作为输出文件"));
 
@@ -565,6 +607,50 @@ mod tests {
         let mut input_after_failure = Xlsx::new(BufReader::new(input_file)).unwrap();
         let range = input_after_failure.worksheet_range("Sheet1").unwrap();
         assert_eq!(range.get_value((0, 0)), Some(&Data::Float(88.0)));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn accepts_mixed_files_and_recursive_folders_and_removes_duplicates() {
+        let root = std::env::temp_dir().join(format!(
+            "excel-summary-multiple-files-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+
+        let nested_folder = root.join("资料").join("子目录");
+        fs::create_dir_all(&nested_folder).unwrap();
+        let first_path = root.join("A报表.xlsx");
+        let second_path = nested_folder.join("B报表.xlsx");
+        for path in [&first_path, &second_path] {
+            let mut workbook = Workbook::new();
+            workbook.add_worksheet().write_number(0, 0, 1.0).unwrap();
+            workbook.save(path).unwrap();
+        }
+
+        let request = SummaryRequest {
+            target_folder: String::new(),
+            target_paths: vec![
+                root.join("资料").to_string_lossy().to_string(),
+                first_path.to_string_lossy().to_string(),
+                root.join("资料").to_string_lossy().to_string(),
+            ],
+            output_file: root.join("汇总结果.xlsx").to_string_lossy().to_string(),
+            keyword: "报表".to_string(),
+            filter_mode: FILTER_MODE_INCLUDE.to_string(),
+            rules: vec![Rule {
+                output_column: "金额".to_string(),
+                sheet_mode: SHEET_MODE_EXACT.to_string(),
+                sheet_value: "Sheet1".to_string(),
+                cell: "A1".to_string(),
+            }],
+            sheet_choices: Vec::new(),
+        };
+
+        let files = source_files_for_request(&request, Path::new(&request.output_file)).unwrap();
+        assert_eq!(files, vec![first_path, second_path]);
 
         let _ = fs::remove_dir_all(&root);
     }
@@ -590,6 +676,7 @@ mod tests {
 
         let request = SummaryRequest {
             target_folder: root.to_string_lossy().to_string(),
+            target_paths: Vec::new(),
             output_file: root.join("旧报表.xlsx").to_string_lossy().to_string(),
             keyword: "报表".to_string(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),

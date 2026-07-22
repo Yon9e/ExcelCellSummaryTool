@@ -7,6 +7,7 @@ function scheme(name: string): Scheme {
     name,
     updated_at: "",
     target_folder: "",
+    target_paths: [],
     output_file: "",
     keyword: "",
     filter_mode: "include",

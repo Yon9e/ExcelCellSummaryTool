@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,50 +30,57 @@ pub fn list_excel_files(
 
     let keyword = keyword.trim();
     let mut files = Vec::new();
-    for entry in fs::read_dir(target).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
-        let path = entry.path();
-        if !path.is_file() {
+    let mut pending_directories = vec![target.to_path_buf()];
+    let mut visited_directories = HashSet::new();
+    while let Some(directory) = pending_directories.pop() {
+        let canonical_directory = fs::canonicalize(&directory)
+            .map_err(|error| format!("无法访问文件夹 {}：{error}", directory.display()))?;
+        if !visited_directories.insert(canonical_directory) {
             continue;
         }
-        let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        if file_name.starts_with("~$") {
-            continue;
-        }
-        let extension = path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        if !EXCEL_EXTENSIONS.contains(&extension.as_str()) {
-            continue;
-        }
-        if !keyword.is_empty() {
-            let matched = file_name.contains(keyword);
-            if mode == FILTER_MODE_INCLUDE && !matched {
+        for entry in fs::read_dir(&directory)
+            .map_err(|error| format!("无法读取文件夹 {}：{error}", directory.display()))?
+        {
+            let entry = entry.map_err(|error| error.to_string())?;
+            let path = entry.path();
+            if path.is_dir() {
+                pending_directories.push(path);
                 continue;
             }
-            if mode == FILTER_MODE_EXCLUDE && matched {
+            if !path.is_file() {
                 continue;
             }
+            let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+                continue;
+            };
+            if file_name.starts_with("~$") {
+                continue;
+            }
+            let extension = path
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            if !EXCEL_EXTENSIONS.contains(&extension.as_str()) {
+                continue;
+            }
+            if !keyword.is_empty() {
+                let matched = file_name.contains(keyword);
+                if mode == FILTER_MODE_INCLUDE && !matched {
+                    continue;
+                }
+                if mode == FILTER_MODE_EXCLUDE && matched {
+                    continue;
+                }
+            }
+            files.push(path);
         }
-        files.push(path);
     }
 
     files.sort_by(|left, right| {
-        left.file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
+        left.to_string_lossy()
             .to_ascii_lowercase()
-            .cmp(
-                &right
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .unwrap_or_default()
-                    .to_ascii_lowercase(),
-            )
+            .cmp(&right.to_string_lossy().to_ascii_lowercase())
     });
     Ok(files)
 }
@@ -112,9 +120,14 @@ mod tests {
         fs::write(root.join("上海底稿.xlsm"), "x").unwrap();
         fs::write(root.join("~$北京报表.xlsx"), "x").unwrap();
         fs::write(root.join("说明.txt"), "x").unwrap();
+        let nested = root.join("子目录").join("更深目录");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("深圳报表.xltx"), "x").unwrap();
 
         let include = list_excel_files(&root, "报表", "include").unwrap();
+        assert_eq!(include.len(), 2);
         assert_eq!(include[0].file_name().unwrap(), "北京报表.xlsx");
+        assert_eq!(include[1].file_name().unwrap(), "深圳报表.xltx");
 
         let exclude = list_excel_files(&root, "报表", "exclude").unwrap();
         assert_eq!(exclude[0].file_name().unwrap(), "上海底稿.xlsm");
