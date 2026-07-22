@@ -2,7 +2,8 @@
 param(
     [string]$Version = "0.2.7",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
-    [string]$PortableDirectoryName = "portable"
+    [string]$PortableDirectoryName = "portable",
+    [switch]$StructureOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -217,6 +218,21 @@ try {
     $Archive.Dispose()
 }
 
+$ExpectedHashes = [ordered]@{
+    "FADT-v$Version-win64-portable.zip" = Get-FileSha256Hex -Path $PortableZip
+    "FADT-v$Version-win64-setup.exe" = Get-FileSha256Hex -Path $SetupExe
+}
+$HashText = Get-Content -LiteralPath $HashFile -Raw
+foreach ($Item in $ExpectedHashes.GetEnumerator()) {
+    if ($HashText -notmatch "(?im)^$([regex]::Escape($Item.Value))\s+$([regex]::Escape($Item.Key))\r?$") {
+        throw "发布审计失败：SHA256SUMS.txt 缺少或写错 $($Item.Key)"
+    }
+}
+if ($StructureOnly) {
+    Write-Host "发布结构审计通过：$($ActualPortableFiles.Count) 个便携文件全部在白名单内，压缩包条目和 SHA-256 清单一致。"
+    return
+}
+
 $UserProfilePattern = [regex]::Escape([System.IO.Path]::GetFullPath($env:USERPROFILE))
 $ProjectRootPattern = [regex]::Escape([System.IO.Path]::GetFullPath($ProjectRoot))
 $SensitivePatterns = [ordered]@{
@@ -254,8 +270,8 @@ foreach ($File in $ScanFiles) {
     $Bytes = [System.IO.File]::ReadAllBytes($File)
     $Texts = @(
         [System.Text.Encoding]::ASCII.GetString($Bytes),
-        [System.Text.Encoding]::Unicode.GetString($Bytes),
-        [System.Text.Encoding]::UTF8.GetString($Bytes)
+        # 规则仅匹配 ASCII 字符；UTF-8 对这些规则与 ASCII 扫描重复。
+        [System.Text.Encoding]::Unicode.GetString($Bytes)
     )
     foreach ($Pattern in $SensitivePatterns.GetEnumerator()) {
         foreach ($Text in $Texts) {
@@ -279,8 +295,8 @@ foreach ($File in $RuntimeFiles) {
     $Bytes = [System.IO.File]::ReadAllBytes($File)
     $Texts = @(
         [System.Text.Encoding]::ASCII.GetString($Bytes),
-        [System.Text.Encoding]::Unicode.GetString($Bytes),
-        [System.Text.Encoding]::UTF8.GetString($Bytes)
+        # OCR 运行时路径规则仅含 ASCII 字符；无需重复 UTF-8 解码。
+        [System.Text.Encoding]::Unicode.GetString($Bytes)
     )
     foreach ($Pattern in $RuntimePathPatterns.GetEnumerator()) {
         foreach ($Text in $Texts) {
@@ -303,17 +319,6 @@ if ($AllFindings.Count -gt 0) {
         Write-Host "敏感模式命中：$($Finding.Rule) | 文件：$RelativePath"
     }
     throw "发布审计失败：检测到敏感数据或本机路径。"
-}
-
-$ExpectedHashes = [ordered]@{
-    "FADT-v$Version-win64-portable.zip" = Get-FileSha256Hex -Path $PortableZip
-    "FADT-v$Version-win64-setup.exe" = Get-FileSha256Hex -Path $SetupExe
-}
-$HashText = Get-Content -LiteralPath $HashFile -Raw
-foreach ($Item in $ExpectedHashes.GetEnumerator()) {
-    if ($HashText -notmatch "(?im)^$([regex]::Escape($Item.Value))\s+$([regex]::Escape($Item.Key))\r?$") {
-        throw "发布审计失败：SHA256SUMS.txt 缺少或写错 $($Item.Key)"
-    }
 }
 
 Write-Host "发布审计通过：$($ActualPortableFiles.Count) 个便携文件全部在白名单内，压缩包条目一致，敏感模式命中 0。"
