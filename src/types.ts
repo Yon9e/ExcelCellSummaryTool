@@ -13,6 +13,7 @@ export interface Rule {
 
 export interface Scheme {
   name: string;
+  updated_at: string;
   target_folder: string;
   output_file: string;
   keyword: string;

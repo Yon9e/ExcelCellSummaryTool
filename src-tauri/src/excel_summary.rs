@@ -32,13 +32,8 @@ where
 {
     let rules = validate_rules(&request.rules)?;
     let output_path = normalize_output_path(&request.output_file)?;
+    let files = source_files_for_request(&request, &output_path)?;
     ensure_output_writable(&output_path)?;
-
-    let files = list_excel_files(
-        &request.target_folder,
-        &request.keyword,
-        &request.filter_mode,
-    )?;
     log(LogEvent {
         level: "INFO".to_string(),
         message: format!("找到 {} 个待处理 Excel 文件。", files.len()),
@@ -53,6 +48,7 @@ where
 
     let total = files.len();
     let mut processed = 0usize;
+    progress(ProgressEvent { processed, total });
     for file_path in &files {
         processed += 1;
         current_file(file_path.to_string_lossy().to_string());
@@ -103,49 +99,56 @@ where
     })
 }
 
-pub fn collect_sheet_conflicts(request: &SummaryRequest) -> Result<Vec<SheetConflict>, String> {
+pub fn collect_sheet_conflicts<FProgress>(
+    request: &SummaryRequest,
+    progress: FProgress,
+) -> Result<Vec<SheetConflict>, String>
+where
+    FProgress: Fn(ProgressEvent),
+{
     let rules = validate_rules(&request.rules)?;
-    let files = list_excel_files(
-        &request.target_folder,
-        &request.keyword,
-        &request.filter_mode,
-    )?;
+    let output_path = normalize_output_path(&request.output_file)?;
+    let files = source_files_for_request(request, &output_path)?;
     let mut conflicts = Vec::new();
+    let total = files.len();
+    let mut processed = 0usize;
+    progress(ProgressEvent { processed, total });
 
     for file_path in files {
-        let Ok(workbook_file) = File::open(&file_path) else {
-            continue;
-        };
-        let Ok(workbook) = Xlsx::new(BufReader::new(workbook_file)) else {
-            continue;
-        };
-        let sheet_names = workbook.sheet_names().to_vec();
-        for (rule_index, rule) in rules.iter().enumerate() {
-            if rule.sheet_mode != SHEET_MODE_CONTAINS {
-                continue;
-            }
-            let matched_sheets: Vec<String> = sheet_names
-                .iter()
-                .filter(|name| name.contains(&rule.sheet_value))
-                .cloned()
-                .collect();
-            if matched_sheets.len() > 1
-                && find_sheet_choice(&request.sheet_choices, &file_path, rule_index).is_none()
-            {
-                conflicts.push(SheetConflict {
-                    file_path: file_path.to_string_lossy().to_string(),
-                    file_name: file_path
-                        .file_name()
-                        .and_then(|value| value.to_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                    rule_index,
-                    output_column: rule.output_column.clone(),
-                    sheet_value: rule.sheet_value.clone(),
-                    matched_sheets,
-                });
+        if let Ok(workbook_file) = File::open(&file_path) {
+            if let Ok(workbook) = Xlsx::new(BufReader::new(workbook_file)) {
+                let sheet_names = workbook.sheet_names().to_vec();
+                for (rule_index, rule) in rules.iter().enumerate() {
+                    if rule.sheet_mode != SHEET_MODE_CONTAINS {
+                        continue;
+                    }
+                    let matched_sheets: Vec<String> = sheet_names
+                        .iter()
+                        .filter(|name| name.contains(&rule.sheet_value))
+                        .cloned()
+                        .collect();
+                    if matched_sheets.len() > 1
+                        && find_sheet_choice(&request.sheet_choices, &file_path, rule_index)
+                            .is_none()
+                    {
+                        conflicts.push(SheetConflict {
+                            file_path: file_path.to_string_lossy().to_string(),
+                            file_name: file_path
+                                .file_name()
+                                .and_then(|value| value.to_str())
+                                .unwrap_or_default()
+                                .to_string(),
+                            rule_index,
+                            output_column: rule.output_column.clone(),
+                            sheet_value: rule.sheet_value.clone(),
+                            matched_sheets,
+                        });
+                    }
+                }
             }
         }
+        processed += 1;
+        progress(ProgressEvent { processed, total });
     }
 
     Ok(conflicts)
@@ -168,9 +171,6 @@ fn normalize_output_path(output_file: &str) -> Result<PathBuf, String> {
     {
         output_path.set_extension("xlsx");
     }
-    if let Some(parent) = output_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
     Ok(output_path)
 }
 
@@ -183,12 +183,46 @@ fn ensure_output_writable(output_path: &Path) -> Result<(), String> {
     {
         return Err("输出文件是 Excel 临时文件，请选择正常 .xlsx 文件。".to_string());
     }
+    if let Some(parent) = output_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
     OpenOptions::new()
         .create(true)
         .append(true)
         .open(output_path)
         .map(|_| ())
         .map_err(|error| format!("输出文件可能正在被 Excel 占用，请关闭后重试：{}", error))
+}
+
+fn source_files_for_request(
+    request: &SummaryRequest,
+    output_path: &Path,
+) -> Result<Vec<PathBuf>, String> {
+    let mut files = list_excel_files(
+        &request.target_folder,
+        &request.keyword,
+        &request.filter_mode,
+    )?;
+    let target_is_file = Path::new(&request.target_folder).is_file();
+    if target_is_file
+        && files
+            .iter()
+            .any(|file_path| paths_refer_to_same_file(file_path, output_path))
+    {
+        return Err("目标文件不能同时作为输出文件，请选择其他输出路径。".to_string());
+    }
+    files.retain(|file_path| !paths_refer_to_same_file(file_path, output_path));
+    Ok(files)
+}
+
+fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
+    match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
 }
 
 fn write_headers(worksheet: &mut Worksheet, rules: &[Rule]) -> Result<(), String> {
@@ -491,6 +525,51 @@ mod tests {
     }
 
     #[test]
+    fn rejects_using_the_selected_source_file_as_output() {
+        let root = std::env::temp_dir().join(format!(
+            "excel-summary-same-output-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+
+        let input_path = root.join("源文件.xlsx");
+        let mut input_workbook = Workbook::new();
+        input_workbook
+            .add_worksheet()
+            .write_number(0, 0, 88.0)
+            .unwrap();
+        input_workbook.save(&input_path).unwrap();
+
+        let request = SummaryRequest {
+            target_folder: input_path.to_string_lossy().to_string(),
+            output_file: input_path.to_string_lossy().to_string(),
+            keyword: String::new(),
+            filter_mode: FILTER_MODE_INCLUDE.to_string(),
+            rules: vec![Rule {
+                output_column: "金额".to_string(),
+                sheet_mode: SHEET_MODE_EXACT.to_string(),
+                sheet_value: "Sheet1".to_string(),
+                cell: "A1".to_string(),
+            }],
+            sheet_choices: Vec::new(),
+        };
+
+        let conflict_error = collect_sheet_conflicts(&request, |_| {}).unwrap_err();
+        assert!(conflict_error.contains("不能同时作为输出文件"));
+
+        let error = run_summary(request, |_| {}, |_| {}, |_| {}).unwrap_err();
+        assert!(error.contains("不能同时作为输出文件"));
+
+        let input_file = File::open(&input_path).unwrap();
+        let mut input_after_failure = Xlsx::new(BufReader::new(input_file)).unwrap();
+        let range = input_after_failure.worksheet_range("Sheet1").unwrap();
+        assert_eq!(range.get_value((0, 0)), Some(&Data::Float(88.0)));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn reports_multiple_contains_sheet_matches_before_summary() {
         let root = std::env::temp_dir().join(format!(
             "excel-summary-conflict-test-{}",
@@ -511,7 +590,7 @@ mod tests {
 
         let request = SummaryRequest {
             target_folder: root.to_string_lossy().to_string(),
-            output_file: root.join("汇总.xlsx").to_string_lossy().to_string(),
+            output_file: root.join("旧报表.xlsx").to_string_lossy().to_string(),
             keyword: "报表".to_string(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
             rules: vec![Rule {
@@ -523,7 +602,12 @@ mod tests {
             sheet_choices: Vec::new(),
         };
 
-        let conflicts = collect_sheet_conflicts(&request).unwrap();
+        let mut old_output = Workbook::new();
+        old_output.add_worksheet().set_name("利润表").unwrap();
+        old_output.add_worksheet().set_name("合并利润表").unwrap();
+        old_output.save(&request.output_file).unwrap();
+
+        let conflicts = collect_sheet_conflicts(&request, |_| {}).unwrap();
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].rule_index, 0);
         assert_eq!(conflicts[0].matched_sheets, vec!["利润表", "合并利润表"]);

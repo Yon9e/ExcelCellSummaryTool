@@ -10,10 +10,16 @@ pub fn load_schemes() -> Result<Vec<Scheme>, String> {
     Ok(load_schemes_map()?.into_values().collect())
 }
 
-pub fn save_scheme(scheme: Scheme) -> Result<(), String> {
-    let scheme = scheme.normalized();
+pub fn save_scheme(scheme: Scheme, previous_name: Option<&str>) -> Result<(), String> {
+    let mut scheme = scheme.normalized();
     scheme.validate_name()?;
+    scheme.updated_at = Local::now().to_rfc3339();
     let mut schemes = load_schemes_map().unwrap_or_default();
+    if let Some(previous_name) = previous_name.map(str::trim).filter(|name| !name.is_empty()) {
+        if previous_name != scheme.name {
+            schemes.remove(previous_name);
+        }
+    }
     schemes.insert(scheme.name.clone(), scheme);
     write_schemes_map(&schemes)
 }

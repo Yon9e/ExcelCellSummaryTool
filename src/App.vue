@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { ElButton, ElConfigProvider } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
@@ -13,9 +13,11 @@ import type { CurrentFileEvent, FilterMode, LogEvent, OcrRuntimeStatus, OcrTabKe
 import { getBrandSubtitle } from "./brandContent";
 import { getFileDisplayName } from "./fileDisplay";
 import { getRuleRowKey } from "./ruleKeys";
+import { acceptRuleDragOver, findRuleDragTarget, getRuleDragOriginStyle, getRuleDragOverlayLeft, getRuleDragOverlayTop, getRuleDragShift } from "./ruleDragPreview";
 import { reorderRules } from "./ruleOrdering";
 import { getSchemePage } from "./schemePaging";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
+import { estimateRemainingSeconds, estimateSummarySeconds, formatSummaryDuration } from "./summaryEstimate";
 import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import SupportWindowContent from "./SupportWindowContent.vue";
 import AboutPage from "./AboutPage.vue";
@@ -38,13 +40,26 @@ const supportView = getSupportViewFromSearch(window.location.search);
 const browserPreview = !isTauriRuntime();
 let ocrStartupPromise: Promise<OcrRuntimeStatus> | null = null;
 let unlisteners: UnlistenFn[] = [];
+let ruleRowCenters: number[] = [];
+
+interface RuleDragOverlayState {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  grabOffsetX: number;
+  grabOffsetY: number;
+  columns: string;
+}
 
 const navigationStore = useAppNavigationStore();
 const { activeWorkspace, activeSummaryTab, activeOcrTab } = storeToRefs(navigationStore);
 const schemes = ref<Scheme[]>([]);
 const selectedScheme = ref("");
+const loadedSchemeName = ref("");
 const schemeName = ref("");
-const targetFolder = ref("");
+const schemeNameInput = ref<HTMLInputElement | null>(null);
+const targetPath = ref("");
 const outputFile = ref("");
 const keyword = ref("");
 const filterMode = ref<FilterMode>("include");
@@ -52,11 +67,16 @@ const rules = ref<Rule[]>(sampleRules.map((rule) => ({ ...rule })));
 const selectedRuleIndex = ref<number | null>(null);
 const draggedRuleIndex = ref<number | null>(null);
 const dragOverRuleIndex = ref<number | null>(null);
+const ruleDragOverlay = ref<RuleDragOverlayState | null>(null);
 const logs = ref<string[]>([]);
 const currentFile = ref("-");
 const processed = ref(0);
 const total = ref(0);
 const running = ref(false);
+const taskStartedAt = ref<number | null>(null);
+const taskEstimatedSeconds = ref<number | null>(null);
+const taskRemainingSeconds = ref<number | null>(null);
+const taskActualSeconds = ref<number | null>(null);
 const sheetConflicts = ref<SheetConflict[]>([]);
 const selectedSheets = ref<Record<string, string>>({});
 const pendingRequest = ref<SummaryRequest | null>(null);
@@ -73,7 +93,18 @@ const activeKicker = computed(() => activeWorkspace.value === "summary" ? "汇�
 const contentKey = computed(() => `${activeWorkspace.value}-${activeWorkspace.value === "summary" ? activeSummaryTab.value : activeWorkspace.value === "ocr" ? activeOcrTab.value : activeWorkspace.value}`);
 const percent = computed(() => total.value > 0 ? Math.round((processed.value / total.value) * 100) : 0);
 const selectedSchemeData = computed(() => schemes.value.find((scheme) => scheme.name === selectedScheme.value));
+const loadedSchemeData = computed(() => schemes.value.find((scheme) => scheme.name === loadedSchemeName.value));
+const draggedRuleData = computed(() => draggedRuleIndex.value === null ? null : rules.value[draggedRuleIndex.value] ?? null);
 const schemePageData = computed(() => getSchemePage(schemes.value, schemeQuery.value, schemePage.value));
+const taskEstimateText = computed(() => {
+  if (!running.value) return taskActualSeconds.value === null
+    ? "本次预计：启动后计算"
+    : `本次用时：${formatSummaryDuration(taskActualSeconds.value)}`;
+  if (total.value <= 0 || taskEstimatedSeconds.value === null) return "本次预计：正在计算";
+  const totalEstimate = formatSummaryDuration(taskEstimatedSeconds.value);
+  const remaining = taskRemainingSeconds.value === null ? "计算中" : formatSummaryDuration(taskRemainingSeconds.value);
+  return `本次预计：${totalEstimate} · 剩余约 ${remaining}`;
+});
 
 watch(() => schemePageData.value.currentPage, (page) => { schemePage.value = page; });
 
@@ -96,23 +127,49 @@ async function refreshSchemes() {
   catch (error) { appendLog("WARN", String(error)); }
 }
 function collectScheme(): Scheme {
-  return { name: schemeName.value, target_folder: targetFolder.value, output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value };
+  return { name: schemeName.value, updated_at: loadedSchemeData.value?.updated_at ?? "", target_folder: targetPath.value, output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value };
+}
+function formatSchemeSavedAt(value: string) {
+  if (!value) return "未记录保存时间";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未记录保存时间";
+  return date.toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+async function confirmAction(text: string, title: string) {
+  return browserPreview ? window.confirm(text) : confirm(text, { title, kind: "warning" });
+}
+function createNewScheme() {
+  selectedScheme.value = ""; loadedSchemeName.value = ""; schemeName.value = ""; targetPath.value = ""; outputFile.value = "";
+  keyword.value = ""; filterMode.value = "include"; rules.value = [{ ...emptyRule }]; selectedRuleIndex.value = 0;
+  appendLog("INFO", "已新建空白方案，请输入名称并完成配置。");
+  void nextTick(() => schemeNameInput.value?.focus());
 }
 async function saveCurrentScheme() {
   const scheme = collectScheme();
+  scheme.name = scheme.name.trim();
+  if (!scheme.name) {
+    if (browserPreview) window.alert("请先输入当前方案名称。");
+    else await message("请先输入当前方案名称。", { title: "方案名称为空", kind: "warning" });
+    return;
+  }
+  const previousName = loadedSchemeName.value.trim();
+  const renamed = Boolean(previousName && previousName !== scheme.name);
+  if (renamed && !await confirmAction(`方案名称已从“${previousName}”更改为“${scheme.name}”，确认修改并保存？`, "确认修改方案名称")) return;
+  const overwritesAnother = schemes.value.some((item) => item.name === scheme.name) && previousName !== scheme.name;
+  if (overwritesAnother && !await confirmAction(`已存在方案“${scheme.name}”，确认覆盖？`, "确认覆盖方案")) return;
   if (browserPreview) {
-    if (!scheme.name.trim()) { window.alert("请先输入方案名称后再保存预览方案。"); return; }
-    schemes.value = [...schemes.value.filter((item) => item.name !== scheme.name), scheme];
-    selectedScheme.value = scheme.name; schemeQuery.value = ""; schemePage.value = 1;
+    const savedScheme = { ...scheme, updated_at: new Date().toISOString() };
+    schemes.value = [...schemes.value.filter((item) => item.name !== scheme.name && item.name !== previousName), savedScheme];
+    selectedScheme.value = scheme.name; loadedSchemeName.value = scheme.name; schemeQuery.value = ""; schemePage.value = 1;
     appendLog("INFO", `浏览器预览已暂存方案：${scheme.name}`); return;
   }
   try {
-    await invoke("save_scheme", { scheme }); appendLog("DONE", `方案已保存：${schemeName.value}`);
-    await refreshSchemes(); selectedScheme.value = schemeName.value; schemeQuery.value = ""; schemePage.value = 1;
+    await invoke("save_scheme", { scheme, previousName: previousName || null }); appendLog("DONE", renamed ? `方案已重命名并保存：${previousName} → ${scheme.name}` : `方案已保存：${scheme.name}`);
+    await refreshSchemes(); selectedScheme.value = scheme.name; loadedSchemeName.value = scheme.name; schemeQuery.value = ""; schemePage.value = 1;
   } catch (error) { await message(String(error), { title: "保存方案失败", kind: "error" }); }
 }
 function applyScheme(scheme: Scheme) {
-  selectedScheme.value = scheme.name; schemeName.value = scheme.name; targetFolder.value = scheme.target_folder;
+  selectedScheme.value = scheme.name; loadedSchemeName.value = scheme.name; schemeName.value = scheme.name; targetPath.value = scheme.target_folder;
   outputFile.value = scheme.output_file; keyword.value = scheme.keyword; filterMode.value = scheme.filter_mode;
   rules.value = (scheme.rules.length ? scheme.rules : [emptyRule]).map((rule) => ({ ...rule }));
   appendLog("INFO", `已载入方案：${scheme.name}`);
@@ -121,14 +178,19 @@ function loadSelectedScheme() { if (selectedSchemeData.value) applyScheme(select
 async function deleteSelectedScheme() {
   if (!selectedScheme.value) return;
   const name = selectedScheme.value;
-  if (browserPreview) { schemes.value = schemes.value.filter((scheme) => scheme.name !== name); selectedScheme.value = ""; appendLog("INFO", `浏览器预览已移除方案：${name}`); return; }
+  if (browserPreview) { schemes.value = schemes.value.filter((scheme) => scheme.name !== name); selectedScheme.value = ""; if (loadedSchemeName.value === name) loadedSchemeName.value = ""; appendLog("INFO", `浏览器预览已移除方案：${name}`); return; }
   if (!await confirm(`确认删除方案“${name}”？`, { title: "删除方案", kind: "warning" })) return;
-  await invoke("delete_scheme", { name }); appendLog("DONE", `方案已删除：${name}`); selectedScheme.value = ""; await refreshSchemes();
+  await invoke("delete_scheme", { name }); appendLog("DONE", `方案已删除：${name}`); selectedScheme.value = ""; if (loadedSchemeName.value === name) loadedSchemeName.value = ""; await refreshSchemes();
 }
 async function browseTargetFolder() {
   if (browserPreview) { window.alert(browserPreviewMessage); return; }
-  const selected = await open({ directory: true, multiple: false, title: "选择包含 Excel 文件的文件夹" });
-  if (typeof selected === "string") targetFolder.value = selected;
+  const selected = await open({ directory: true, multiple: false, title: "选择包含 Excel 文件的文件夹，支持 .xlsx / .xlsm / .xltx / .xltm 格式" });
+  if (typeof selected === "string") targetPath.value = selected;
+}
+async function browseTargetFile() {
+  if (browserPreview) { window.alert(browserPreviewMessage); return; }
+  const selected = await open({ multiple: false, title: "选择 Excel 文件", filters: [{ name: "Excel 文件", extensions: ["xlsx", "xlsm", "xltx", "xltm"] }] });
+  if (typeof selected === "string") targetPath.value = selected;
 }
 async function browseOutputFile() {
   if (browserPreview) { window.alert(browserPreviewMessage); return; }
@@ -139,37 +201,109 @@ function updateRule(index: number, patch: Partial<Rule>) { rules.value[index] = 
 function addRule() { rules.value.push({ ...emptyRule }); selectedRuleIndex.value = rules.value.length - 1; }
 function deleteSelectedRule() { if (selectedRuleIndex.value === null) return; rules.value.splice(selectedRuleIndex.value, 1); selectedRuleIndex.value = null; }
 function appendImportedRules(importedRules: Rule[]) { const start = rules.value.length; rules.value.push(...importedRules); selectedRuleIndex.value = start; appendLog("DONE", `已从 Excel 截图追加 ${importedRules.length} 条规则。`); }
-function startRuleDrag(event: DragEvent, index: number) { draggedRuleIndex.value = index; dragOverRuleIndex.value = index; selectedRuleIndex.value = index; if (event.dataTransfer) { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(index)); } }
-function dropRule(event: DragEvent, toIndex: number) {
-  event.preventDefault(); const transferIndex = Number(event.dataTransfer?.getData("text/plain")); const fromIndex = draggedRuleIndex.value ?? transferIndex;
-  if (Number.isInteger(fromIndex)) { const result = reorderRules(rules.value, fromIndex, toIndex, selectedRuleIndex.value); rules.value = result.rules; selectedRuleIndex.value = result.selectedIndex; }
-  draggedRuleIndex.value = null; dragOverRuleIndex.value = null;
+function getSheetModeDisplay(mode: SheetMode) {
+  return mode === "exact" ? "exact - 精确匹配" : mode === "contains" ? "contains - 包含关键词" : "index - 按序号";
 }
-function endRuleDrag() { draggedRuleIndex.value = null; dragOverRuleIndex.value = null; }
+function startRuleDrag(event: DragEvent, index: number) {
+  draggedRuleIndex.value = index; dragOverRuleIndex.value = index; selectedRuleIndex.value = index;
+  const row = (event.currentTarget as HTMLElement | null)?.closest("tr");
+  const table = row?.closest("table");
+  ruleRowCenters = Array.from(table?.tBodies[0]?.rows ?? []).map((row) => {
+    const rect = row.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  });
+  if (row) {
+    const rect = row.getBoundingClientRect();
+    const pointerX = event.clientX || rect.left + 36;
+    const pointerY = event.clientY || rect.top + rect.height / 2;
+    ruleDragOverlay.value = {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      grabOffsetX: pointerX - rect.left,
+      grabOffsetY: pointerY - rect.top,
+      columns: Array.from(row.cells).map((cell) => `${cell.getBoundingClientRect().width}px`).join(" "),
+    };
+  }
+  window.addEventListener("dragenter", updateRuleDragOverlayFromPointer);
+  window.addEventListener("dragover", updateRuleDragOverlayFromPointer);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+    const transparentDragImage = document.createElement("canvas");
+    transparentDragImage.width = 1; transparentDragImage.height = 1;
+    event.dataTransfer.setDragImage(transparentDragImage, 0, 0);
+  }
+}
+function previewRuleDrop(toIndex: number) {
+  dragOverRuleIndex.value = toIndex;
+}
+function updateRuleDragTargetFromPointer(event: DragEvent) {
+  updateRuleDragOverlayFromPointer(event);
+  const targetIndex = findRuleDragTarget(ruleRowCenters, event.clientY);
+  if (targetIndex !== null) previewRuleDrop(targetIndex);
+}
+function updateRuleDragOverlayFromPointer(event: DragEvent) {
+  acceptRuleDragOver(event);
+  const overlay = ruleDragOverlay.value;
+  if (!overlay || (event.clientX === 0 && event.clientY === 0)) return;
+  ruleDragOverlay.value = {
+    ...overlay,
+    left: getRuleDragOverlayLeft(event.clientX, overlay.grabOffsetX),
+    top: getRuleDragOverlayTop(event.clientY, overlay.grabOffsetY),
+  };
+}
+function dropRule(event: DragEvent) {
+  event.preventDefault();
+  const fromIndex = draggedRuleIndex.value;
+  const toIndex = dragOverRuleIndex.value;
+  if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
+    const result = reorderRules(rules.value, fromIndex, toIndex, selectedRuleIndex.value);
+    rules.value = result.rules; selectedRuleIndex.value = result.selectedIndex;
+  }
+  endRuleDrag();
+}
+function endRuleDrag() {
+  draggedRuleIndex.value = null; dragOverRuleIndex.value = null; ruleDragOverlay.value = null; ruleRowCenters = [];
+  window.removeEventListener("dragenter", updateRuleDragOverlayFromPointer);
+  window.removeEventListener("dragover", updateRuleDragOverlayFromPointer);
+}
 async function runSummary() {
   if (browserPreview) { window.alert(browserPreviewMessage); return; }
   if (running.value) return;
-  const request: SummaryRequest = { target_folder: targetFolder.value, output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value, sheet_choices: [] };
-  if (!targetFolder.value || !outputFile.value) { await message("请先选择目标文件夹和输出文件。", { title: "配置不完整", kind: "warning" }); return; }
+  const request: SummaryRequest = { target_folder: targetPath.value, output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value, sheet_choices: [] };
+  if (!targetPath.value || !outputFile.value) { await message("请先选择目标文件或文件夹，以及输出文件。", { title: "配置不完整", kind: "warning" }); return; }
   if (!rules.value.length) { await message("请至少配置一条规则。", { title: "规则为空", kind: "warning" }); return; }
   if (await invoke<boolean>("path_exists", { path: outputFile.value }) && !await confirm("输出文件已存在，是否覆盖？", { title: "确认覆盖", kind: "warning" })) return;
+  beginTaskTiming("开始预检文件与 Sheet，正在估算本次任务用时。");
   try {
     const conflicts = await invoke<SheetConflict[]>("collect_sheet_conflicts", { request });
     if (conflicts.length) {
       selectedSheets.value = Object.fromEntries(conflicts.map((conflict) => [getSheetConflictKey(conflict), conflict.matched_sheets[0]]));
-      sheetConflicts.value = conflicts; pendingRequest.value = request; appendLog("WARN", `发现 ${conflicts.length} 处 Sheet 关键词命中多个 Sheet，请选择后继续。`); return;
+      sheetConflicts.value = conflicts; pendingRequest.value = request; finishTaskTiming(); appendLog("WARN", `发现 ${conflicts.length} 处 Sheet 关键词命中多个 Sheet，请选择后继续。`); return;
     }
-  } catch (error) { await message(String(error), { title: "Sheet 冲突检查失败", kind: "error" }); return; }
+  } catch (error) { finishTaskTiming(); await message(String(error), { title: "Sheet 冲突检查失败", kind: "error" }); return; }
   await executeSummary(request);
 }
+function beginTaskTiming(logMessage: string) {
+  running.value = true; processed.value = 0; total.value = 0; currentFile.value = "-";
+  taskStartedAt.value = Date.now(); taskEstimatedSeconds.value = null; taskRemainingSeconds.value = null; taskActualSeconds.value = null;
+  appendLog("INFO", logMessage);
+}
 async function executeSummary(request: SummaryRequest) {
-  running.value = true; processed.value = 0; total.value = 0; currentFile.value = "-"; appendLog("INFO", "开始执行汇总。");
+  beginTaskTiming("开始执行汇总，正在估算本次任务用时。");
   try {
     const result = await invoke<SummaryResult>("run_summary", { request });
+    finishTaskTiming();
     appendLog("DONE", `处理完成：${result.processed_files}/${result.total_files}，输出 ${getFileDisplayName(result.output_path)}`);
     if (await confirm(getSummaryCompletionPrompt(), { title: "执行完成", kind: "info" })) await invoke("open_output_file", { path: result.output_path });
-  } catch (error) { appendLog("ERROR", String(error)); await message(String(error), { title: "汇总失败", kind: "error" }); }
-  finally { running.value = false; }
+  } catch (error) { finishTaskTiming(); appendLog("ERROR", String(error)); await message(String(error), { title: "汇总失败", kind: "error" }); }
+  finally { if (running.value) finishTaskTiming(); }
+}
+function finishTaskTiming() {
+  if (taskStartedAt.value !== null) taskActualSeconds.value = (Date.now() - taskStartedAt.value) / 1000;
+  taskRemainingSeconds.value = 0; running.value = false;
 }
 function cancelSheetChoice() { sheetConflicts.value = []; selectedSheets.value = {}; pendingRequest.value = null; appendLog("INFO", "已取消 Sheet 选择。"); }
 async function continueWithSheetChoices() {
@@ -193,11 +327,24 @@ onMounted(async () => {
   unlisteners = await Promise.all([
     listen<WorkspaceKey>("navigate-workspace", ({ payload }) => { if (isWorkspaceKey(payload)) activeWorkspace.value = payload; }),
     listen<LogEvent>("summary-log", ({ payload }) => appendLog(payload.level, payload.message)),
-    listen<ProgressEvent>("summary-progress", ({ payload }) => { processed.value = payload.processed; total.value = payload.total; }),
+    listen<ProgressEvent>("summary-progress", ({ payload }) => {
+      processed.value = payload.processed; total.value = payload.total;
+      if (payload.total > 0 && taskEstimatedSeconds.value === null) {
+        taskEstimatedSeconds.value = estimateSummarySeconds(payload.total, rules.value.length);
+        taskRemainingSeconds.value = taskEstimatedSeconds.value;
+      }
+      if (taskStartedAt.value !== null && payload.processed > 0) {
+        taskRemainingSeconds.value = estimateRemainingSeconds(taskStartedAt.value, payload.processed, payload.total);
+      }
+    }),
     listen<CurrentFileEvent>("summary-current-file", ({ payload }) => { currentFile.value = payload.path; }),
   ]);
 });
-onBeforeUnmount(() => unlisteners.forEach((unlisten) => unlisten()));
+onBeforeUnmount(() => {
+  unlisteners.forEach((unlisten) => unlisten());
+  window.removeEventListener("dragenter", updateRuleDragOverlayFromPointer);
+  window.removeEventListener("dragover", updateRuleDragOverlayFromPointer);
+});
 </script>
 
 <template>
@@ -231,28 +378,29 @@ onBeforeUnmount(() => unlisteners.forEach((unlisten) => unlisten()));
         </nav>
         <div class="feature-content" :key="contentKey">
           <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'scheme'" class="scheme-page">
-            <div class="scheme-editor"><label><span>方案名称</span><input v-model="schemeName" placeholder="方案名称" /></label><div class="button-row">
-              <button class="soft-button" @click="saveCurrentScheme"><Save :size="18" />保存方案</button>
+            <div class="scheme-editor"><div class="scheme-current"><label><span>当前方案</span><input ref="schemeNameInput" v-model="schemeName" placeholder="输入新方案名称，或从下方载入已有方案" /></label><small>{{ loadedSchemeData ? `最近保存：${formatSchemeSavedAt(loadedSchemeData.updated_at)}` : '新方案尚未保存' }}</small></div><div class="button-row scheme-actions">
+              <button class="soft-button" @click="createNewScheme"><Plus :size="18" />新建方案</button>
               <button class="soft-button" :disabled="!selectedSchemeData" @click="loadSelectedScheme"><FolderOpen :size="18" />载入方案</button>
+              <button class="primary-button" @click="saveCurrentScheme"><Save :size="18" />保存方案</button>
               <button class="danger-button" :disabled="!selectedSchemeData" @click="deleteSelectedScheme"><Trash2 :size="18" />删除方案</button>
             </div></div>
             <section class="scheme-library" aria-labelledby="saved-schemes-title">
               <div class="scheme-library-heading"><div><h4 id="saved-schemes-title">已保存方案</h4><span>共 {{ schemePageData.totalItems }} 个方案</span></div><label class="scheme-search"><Search :size="18" /><input v-model="schemeQuery" placeholder="搜索方案名称" aria-label="搜索已保存方案" @input="schemePage = 1" /></label></div>
               <div class="scheme-list" role="listbox" aria-label="已保存方案">
-                <button v-for="scheme in schemePageData.items" :key="scheme.name" type="button" role="option" :aria-selected="selectedScheme === scheme.name" :class="selectedScheme === scheme.name ? 'scheme-list-item selected' : 'scheme-list-item'" @click="selectedScheme = scheme.name" @dblclick="applyScheme(scheme)"><FileSpreadsheet :size="20" /><span class="scheme-list-name">{{ scheme.name }}</span><span class="scheme-list-meta">{{ scheme.rules.length }} 条规则</span><span class="scheme-list-filter">{{ scheme.keyword ? `关键词：${scheme.keyword}` : '全部 Excel 文件' }}</span></button>
+                <button v-for="scheme in schemePageData.items" :key="scheme.name" type="button" role="option" :aria-selected="selectedScheme === scheme.name" :class="selectedScheme === scheme.name ? 'scheme-list-item selected' : 'scheme-list-item'" @click="selectedScheme = scheme.name" @dblclick="applyScheme(scheme)"><FileSpreadsheet :size="20" /><span class="scheme-list-primary"><strong class="scheme-list-name">{{ scheme.name }}</strong><small>{{ scheme.keyword ? `关键词：${scheme.keyword}` : '全部 Excel 文件' }}</small></span><span class="scheme-list-meta">{{ scheme.rules.length }} 条规则</span><time class="scheme-list-saved" :datetime="scheme.updated_at">{{ formatSchemeSavedAt(scheme.updated_at) }}</time></button>
                 <div v-if="!schemePageData.items.length" class="scheme-empty">没有匹配的已保存方案</div>
               </div>
               <div class="scheme-pagination"><span>第 {{ schemePageData.currentPage }} / {{ schemePageData.totalPages }} 页</span><div><button type="button" class="icon-button" :disabled="schemePageData.currentPage <= 1" title="上一页" @click="schemePage = Math.max(1, schemePage - 1)"><ChevronLeft :size="19" /></button><button type="button" class="icon-button" :disabled="schemePageData.currentPage >= schemePageData.totalPages" title="下一页" @click="schemePage = Math.min(schemePageData.totalPages, schemePage + 1)"><ChevronRight :size="19" /></button></div></div>
             </section>
           </div>
           <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'source'" class="form-grid">
-            <label class="wide-field"><span>目标文件夹</span><div class="input-action"><input v-model="targetFolder" placeholder="选择包含 Excel 文件的文件夹" /><button class="soft-button" @click="browseTargetFolder">浏览</button></div></label>
+            <label class="wide-field"><span>目标文件/文件夹</span><div class="input-action multi-action"><input v-model="targetPath" placeholder="选择包含 Excel 文件的文件或文件夹，支持 .xlsx / .xlsm / .xltx / .xltm 格式" /><span class="path-picker-actions"><button class="soft-button" type="button" @click="browseTargetFile"><FileSpreadsheet :size="17" />选择文件</button><button class="soft-button" type="button" @click="browseTargetFolder"><FolderOpen :size="17" />选择文件夹</button></span></div></label>
             <label class="wide-field"><span>输出文件</span><div class="input-action"><div class="output-file-field"><span v-if="outputFile" class="output-file-name" :title="outputFile">{{ getFileDisplayName(outputFile) }}</span><span v-else class="output-file-placeholder">尚未选择输出文件</span></div><button class="soft-button" @click="browseOutputFile">浏览</button></div></label>
             <label><span>关键词</span><input v-model="keyword" placeholder="为空时处理全部符合条件的 Excel 文件" /></label>
             <label><span>筛选模式</span><select v-model="filterMode"><option value="include">包含关键词</option><option value="exclude">排除关键词</option></select></label>
           </div>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" class="table-wrap"><table><thead><tr><th class="drag-column" aria-label="拖动排序" title="拖动左侧手柄调整规则顺序"><GripVertical :size="18" /></th><th>输出列名</th><th>Sheet 模式</th><th>Sheet 值</th><th>单元格</th></tr></thead><tbody>
-            <tr v-for="(rule, index) in rules" :key="getRuleRowKey(index)" :class="[selectedRuleIndex === index ? 'selected-row' : '', dragOverRuleIndex === index && draggedRuleIndex !== index ? 'drag-over-row' : '']" @click="selectedRuleIndex = index" @dragover.prevent="dragOverRuleIndex = index" @drop="dropRule($event, index)">
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" class="table-wrap"><table @dragover.prevent="updateRuleDragTargetFromPointer" @drop="dropRule"><thead><tr><th class="drag-column" aria-label="拖动排序" title="拖动左侧手柄调整规则顺序"><GripVertical :size="18" /></th><th>输出列名</th><th>Sheet 模式</th><th>Sheet 值</th><th>单元格</th></tr></thead><tbody>
+            <tr v-for="(rule, index) in rules" :key="getRuleRowKey(rule)" :class="['rule-drag-row', selectedRuleIndex === index ? 'selected-row' : '', draggedRuleIndex === index ? 'dragging-rule-origin' : '', dragOverRuleIndex === index && draggedRuleIndex !== index ? 'drag-over-row' : '', getRuleDragShift(index, draggedRuleIndex, dragOverRuleIndex)]" :style="getRuleDragOriginStyle(draggedRuleIndex === index)" @click="selectedRuleIndex = index">
               <td class="drag-cell"><button type="button" class="drag-handle" draggable="true" :aria-label="`拖动第 ${index + 1} 条规则调整顺序`" title="拖动调整顺序" @click.stop="selectedRuleIndex = index" @dragstart="startRuleDrag($event, index)" @dragend="endRuleDrag"><GripVertical :size="20" /></button></td>
               <td><input :value="rule.output_column" @input="updateRule(index, { output_column: ($event.target as HTMLInputElement).value })" /></td>
               <td><select :value="rule.sheet_mode" @change="updateRule(index, { sheet_mode: ($event.target as HTMLSelectElement).value as SheetMode })"><option value="exact">exact - 精确匹配</option><option value="contains">contains - 包含关键词</option><option value="index">index - 按序号</option></select></td>
@@ -260,7 +408,16 @@ onBeforeUnmount(() => unlisteners.forEach((unlisten) => unlisten()));
               <td><input :value="rule.cell" @input="updateRule(index, { cell: ($event.target as HTMLInputElement).value })" /></td>
             </tr>
           </tbody></table></div>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'run'" class="run-layout"><div class="run-actions"><button class="primary-button" :disabled="running" @click="runSummary"><Rocket :size="20" />{{ running ? '正在汇总' : '开始汇总' }}</button><button class="soft-button" @click="logs = []">清空日志</button><div class="run-meta">当前处理文件：{{ currentFile }}</div><div class="run-count">已处理 {{ processed }} / {{ total }}</div></div><div class="progress-bar"><div :style="{ width: `${percent}%` }" /><span>{{ percent }}%</span></div><pre class="log-console">{{ logs.join('\n') }}</pre></div>
+          <Teleport to="body">
+            <div v-if="ruleDragOverlay && draggedRuleData" class="rule-drag-overlay" :style="{ left: `${ruleDragOverlay.left}px`, top: `${ruleDragOverlay.top}px`, width: `${ruleDragOverlay.width}px`, height: `${ruleDragOverlay.height}px`, gridTemplateColumns: ruleDragOverlay.columns }" aria-hidden="true">
+              <div class="rule-drag-overlay-cell rule-drag-overlay-handle"><GripVertical :size="20" /></div>
+              <div class="rule-drag-overlay-cell"><span>{{ draggedRuleData.output_column }}</span></div>
+              <div class="rule-drag-overlay-cell"><span>{{ getSheetModeDisplay(draggedRuleData.sheet_mode) }}</span></div>
+              <div class="rule-drag-overlay-cell"><span>{{ draggedRuleData.sheet_value }}</span></div>
+              <div class="rule-drag-overlay-cell"><span>{{ draggedRuleData.cell }}</span></div>
+            </div>
+          </Teleport>
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'run'" class="run-layout"><div class="run-actions"><button class="primary-button" :disabled="running" @click="runSummary"><Rocket :size="20" />{{ running ? '正在汇总' : '开始汇总' }}</button><button class="soft-button" @click="logs = []">清空日志</button><div class="run-meta">当前处理文件：{{ currentFile }}</div><div class="run-estimate" aria-live="polite">{{ taskEstimateText }}</div><div class="run-count">已处理 {{ processed }} / {{ total }}</div></div><div class="progress-bar"><div :style="{ width: `${percent}%` }" /><span>{{ percent }}%</span></div><pre class="log-console">{{ logs.join('\n') }}</pre></div>
           <OcrPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'capture'" :on-log="appendLog" />
           <OcrSettingsPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'settings'" :on-log="appendLog" />
           <TextCleanerPage v-if="activeWorkspace === 'text-cleaner'" :on-log="appendLog" :on-open-regex-tutorial="() => openSupportWindow('regex', 'text-cleaner')" />

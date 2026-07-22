@@ -5,6 +5,7 @@ import type { Scheme } from "./types";
 function scheme(name: string): Scheme {
   return {
     name,
+    updated_at: "",
     target_folder: "",
     output_file: "",
     keyword: "",

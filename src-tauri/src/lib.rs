@@ -63,8 +63,8 @@ fn load_schemes() -> Result<Vec<Scheme>, String> {
 }
 
 #[tauri::command]
-fn save_scheme(scheme: Scheme) -> Result<(), String> {
-    scheme_store::save_scheme(scheme)
+fn save_scheme(scheme: Scheme, previous_name: Option<String>) -> Result<(), String> {
+    scheme_store::save_scheme(scheme, previous_name.as_deref())
 }
 
 #[tauri::command]
@@ -176,8 +176,17 @@ async fn show_ocr_settings(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn collect_sheet_conflicts(request: SummaryRequest) -> Result<Vec<SheetConflict>, String> {
-    excel_summary::collect_sheet_conflicts(&request)
+async fn collect_sheet_conflicts(
+    window: Window,
+    request: SummaryRequest,
+) -> Result<Vec<SheetConflict>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        excel_summary::collect_sheet_conflicts(&request, move |event: ProgressEvent| {
+            let _ = window.emit("summary-progress", event);
+        })
+    })
+    .await
+    .map_err(|error| format!("Sheet 冲突检查后台任务失败：{error}"))?
 }
 
 fn validate_openable_file_path(path: &str) -> Result<PathBuf, String> {

@@ -57,6 +57,8 @@ impl Rule {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Scheme {
     pub name: String,
+    #[serde(default)]
+    pub updated_at: String,
     pub target_folder: String,
     pub output_file: String,
     pub keyword: String,
@@ -72,6 +74,7 @@ impl Scheme {
         };
         Self {
             name: self.name.trim().to_string(),
+            updated_at: self.updated_at.trim().to_string(),
             target_folder: self.target_folder.trim().to_string(),
             output_file: self.output_file.trim().to_string(),
             keyword: self.keyword.trim().to_string(),
@@ -245,5 +248,16 @@ mod tests {
         }])
         .unwrap_err();
         assert!(error.contains("正整数"));
+    }
+
+    #[test]
+    fn loads_legacy_scheme_without_saved_time() {
+        let scheme: Scheme = serde_json::from_str(
+            r#"{"name":"旧方案","target_folder":"D:\\报表","output_file":"D:\\汇总.xlsx","keyword":"","filter_mode":"include","rules":[]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(scheme.name, "旧方案");
+        assert!(scheme.updated_at.is_empty());
     }
 }
