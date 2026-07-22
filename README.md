@@ -1,8 +1,8 @@
-# Financial Tool 财务工具箱
+# FADT
 
-面向财务、审计和办公自动化场景的 Windows 桌面工具。当前包含 Excel 单元格定向汇总、本地截图 OCR、图片文字识别，以及从 Excel 截图选择单元格生成取数规则。
+Financial Audit Data Toolkit（FADT）是面向财务与审计人员的一体化数据处理工具。当前包含 Excel 单元格定向汇总、本地截图 OCR、图片文字识别，以及从 Excel 截图选择单元格生成取数规则。
 
-仓库名继续使用 `ExcelCellSummaryTool`，用户方案目录保持不变，便于从旧版本平滑升级。
+GitHub 仓库为 [Yon9e/FADT](https://github.com/Yon9e/FADT)。FADT 首次启动时会迁移旧版方案与 OCR 设置，且不会删除旧版用户数据目录。
 
 ## 主要功能
 
@@ -27,12 +27,12 @@
 
 ## 下载与使用
 
-从 GitHub Releases 下载最新版：
+从 GitHub Releases 下载最新版。自 v0.2.7 起，发布文件名为：
 
-- 安装版：`ExcelCellSummaryTool-v0.2.6-win64-setup.exe`
-- 免安装版：`ExcelCellSummaryTool-v0.2.6-win64-portable.zip`
+- 安装版：`FADT-v<版本>-win64-setup.exe`
+- 免安装版：`FADT-v<版本>-win64-portable.zip`
 
-安装版直接运行安装程序。免安装版必须先完整解压，再运行 `Financial Tool.exe`；不要只从压缩包中单独取出 exe，因为 OCR 需要同目录的 `umi-ocr` 运行文件。
+v0.2.6 及更早版本仍使用 `ExcelCellSummaryTool-...` 文件名。安装版会自动替换当前用户安装的旧版 Financial Tool；免安装版必须先完整解压，再运行 `FADT.exe`；不要只从压缩包中单独取出 exe，因为 OCR 需要同目录的 `umi-ocr` 运行文件。
 
 ### Excel 汇总
 
@@ -64,12 +64,12 @@
 - 图片规则功能只定位输出列名和单元格坐标，不从截图推断 Sheet 名。
 - 截图必须保留 Excel 行号和列字母，页面缩放过小时可能降低 OCR 识别率；导入前必须人工核对结果。
 
-## 用户数据
+## 用户数据与旧版迁移
 
-- 汇总方案：`%APPDATA%\ExcelCellSummaryTool\schemes.json`
-- OCR 运行设置：`%LOCALAPPDATA%\ExcelCellSummaryTool\ocr-runtime\UmiOCR-data`
+- 汇总方案：`%APPDATA%\FADT\schemes.json`
+- OCR 运行设置：`%LOCALAPPDATA%\FADT\ocr-runtime\UmiOCR-data`
 
-安装版和 portable 版共用上述用户目录。更新或替换 portable 主程序不会删除历史方案和 OCR 设置。
+安装版和 portable 版共用上述用户目录。FADT 首次启动时，若新目录尚不存在，会从 `%APPDATA%\ExcelCellSummaryTool\schemes.json` 与 `%LOCALAPPDATA%\ExcelCellSummaryTool\ocr-runtime\UmiOCR-data` 迁移历史方案和 OCR 设置；旧目录会保留，已有 FADT 设置不会被覆盖。
 
 OCR 服务只监听 `127.0.0.1`，图片识别请求不会发送到外部服务器。发布包不会包含开发机方案、OCR 设置、日志或测试工作簿。
 
@@ -100,10 +100,10 @@ Set-Location .\src-tauri
 
 产物：
 
-- `release\portable\ExcelCellSummaryTool\Financial Tool.exe`
-- `release\portable\ExcelCellSummaryTool\umi-ocr\Umi-OCR.exe`
-- `release\ExcelCellSummaryTool-v0.2.6-win64-portable.zip`
-- `release\ExcelCellSummaryTool-v0.2.6-win64-setup.exe`
+- `release\portable\FADT\FADT.exe`
+- `release\portable\FADT\umi-ocr\Umi-OCR.exe`
+- `release\FADT-v0.2.7-win64-portable.zip`
+- `release\FADT-v0.2.7-win64-setup.exe`
 - `release\SHA256SUMS.txt`
 
 打包结束会运行 `scripts\audit_release.ps1`，核对 portable 与压缩包文件白名单，并扫描令牌、私钥、本机路径、用户配置和日志。

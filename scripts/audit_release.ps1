@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [string]$Version = "0.2.6",
+    [string]$Version = "0.2.7",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -8,11 +8,11 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$PortableRoot = Join-Path $ReleaseDir "$PortableDirectoryName\ExcelCellSummaryTool"
-$PortableExe = Join-Path $PortableRoot "Financial Tool.exe"
+$PortableRoot = Join-Path $ReleaseDir "$PortableDirectoryName\FADT"
+$PortableExe = Join-Path $PortableRoot "FADT.exe"
 $PortableOcrRoot = Join-Path $PortableRoot "umi-ocr"
-$PortableZip = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.zip"
-$SetupExe = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-setup.exe"
+$PortableZip = Join-Path $ReleaseDir "FADT-v$Version-win64-portable.zip"
+$SetupExe = Join-Path $ReleaseDir "FADT-v$Version-win64-setup.exe"
 $ReleaseNotes = Join-Path $ReleaseDir "RELEASE_NOTES.md"
 $HashFile = Join-Path $ReleaseDir "SHA256SUMS.txt"
 $LicenseFile = Join-Path $ProjectRoot "LICENSE"
@@ -135,7 +135,7 @@ if ($ForbiddenUserFiles.Count -gt 0) {
 
 $RuntimeSourceFiles = @(Get-ChildItem -LiteralPath $RuntimeSource -File -Recurse -Force)
 $ExpectedPortableFiles = @(
-    "Financial Tool.exe",
+    "FADT.exe",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "list_quick_access.ps1"
@@ -192,7 +192,7 @@ $Archive = [System.IO.Compression.ZipFile]::OpenRead($PortableZip)
 try {
     $ArchiveFileEntries = @($Archive.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) })
     $ExpectedArchiveNames = @(
-        $ExpectedPortableFiles | ForEach-Object { "ExcelCellSummaryTool/$($_.Replace('\', '/'))" }
+        $ExpectedPortableFiles | ForEach-Object { "FADT/$($_.Replace('\', '/'))" }
     )
     $ActualArchiveNames = @(
         $ArchiveFileEntries.FullName |
@@ -207,7 +207,7 @@ try {
 
     foreach ($Entry in $ArchiveFileEntries) {
         $NormalizedEntryName = $Entry.FullName.Replace("\", "/")
-        $Relative = $NormalizedEntryName.Substring("ExcelCellSummaryTool/".Length).Replace("/", "\")
+        $Relative = $NormalizedEntryName.Substring("FADT/".Length).Replace("/", "\")
         $StageFile = Join-Path $PortableRoot $Relative
         if ($Entry.Length -ne (Get-Item -LiteralPath $StageFile).Length) {
             throw "发布审计失败：压缩包条目大小不一致：$($Entry.FullName)"
@@ -306,8 +306,8 @@ if ($AllFindings.Count -gt 0) {
 }
 
 $ExpectedHashes = [ordered]@{
-    "ExcelCellSummaryTool-v$Version-win64-portable.zip" = Get-FileSha256Hex -Path $PortableZip
-    "ExcelCellSummaryTool-v$Version-win64-setup.exe" = Get-FileSha256Hex -Path $SetupExe
+    "FADT-v$Version-win64-portable.zip" = Get-FileSha256Hex -Path $PortableZip
+    "FADT-v$Version-win64-setup.exe" = Get-FileSha256Hex -Path $SetupExe
 }
 $HashText = Get-Content -LiteralPath $HashFile -Raw
 foreach ($Item in $ExpectedHashes.GetEnumerator()) {

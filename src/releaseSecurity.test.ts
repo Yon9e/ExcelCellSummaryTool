@@ -14,7 +14,7 @@ describe("发布脚本隐私检查", () => {
     expect(buildScript).toContain("--remap-path-prefix=%USERPROFILE%=~");
     expect(buildScript).toContain("scripts\\audit_release.ps1");
     expect(buildScript).toContain("scripts\\setup_umi_ocr.ps1");
-    expect(buildScript).toContain("-Version 0.2.6");
+    expect(buildScript).toContain("-Version 0.2.7");
     expect(auditScript).toContain("core.quotepath=false");
     expect(buildScript).not.toMatch(/[A-Z]:\\(?:Users|DevHub)\\/i);
   });

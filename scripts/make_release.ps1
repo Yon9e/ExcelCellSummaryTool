@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.2.6",
+    [string]$Version = "0.2.7",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )
@@ -7,11 +7,11 @@
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$PortableStage = Join-Path $ReleaseDir "$PortableDirectoryName\ExcelCellSummaryTool"
-$PortableExe = Join-Path $ProjectRoot "src-tauri\target\release\excel-cell-summary-tool.exe"
-$SetupSource = Join-Path $ProjectRoot "src-tauri\target\release\bundle\nsis\Financial Tool_$($Version)_x64-setup.exe"
-$PortableZip = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-portable.zip"
-$SetupTarget = Join-Path $ReleaseDir "ExcelCellSummaryTool-v$Version-win64-setup.exe"
+$PortableStage = Join-Path $ReleaseDir "$PortableDirectoryName\FADT"
+$PortableExe = Join-Path $ProjectRoot "src-tauri\target\release\fadt.exe"
+$SetupSource = Join-Path $ProjectRoot "src-tauri\target\release\bundle\nsis\FADT_$($Version)_x64-setup.exe"
+$PortableZip = Join-Path $ReleaseDir "FADT-v$Version-win64-portable.zip"
+$SetupTarget = Join-Path $ReleaseDir "FADT-v$Version-win64-setup.exe"
 $NotesPath = Join-Path $ReleaseDir "RELEASE_NOTES.md"
 $HashPath = Join-Path $ReleaseDir "SHA256SUMS.txt"
 $OcrRuntimeSource = Join-Path $ProjectRoot "third_party\umi-ocr\runtime"
@@ -76,7 +76,7 @@ if (Test-Path -LiteralPath (Join-Path $ReleaseDir $PortableDirectoryName)) {
 }
 New-Item -ItemType Directory -Force -Path $PortableStage | Out-Null
 
-Copy-Item -LiteralPath $PortableExe -Destination (Join-Path $PortableStage "Financial Tool.exe") -Force
+Copy-Item -LiteralPath $PortableExe -Destination (Join-Path $PortableStage "FADT.exe") -Force
 Copy-Item -LiteralPath $OcrRuntimeSource -Destination (Join-Path $PortableStage "umi-ocr") -Recurse -Force
 Copy-Item -LiteralPath $LicenseSource -Destination (Join-Path $PortableStage "LICENSE") -Force
 Copy-Item -LiteralPath $ThirdPartyNoticeSource -Destination (Join-Path $PortableStage "THIRD_PARTY_NOTICES.md") -Force
@@ -90,12 +90,13 @@ if (Test-Path -LiteralPath $PortableZip) {
 Compress-Archive -Path $PortableStage -DestinationPath $PortableZip -Force
 
 $notes = @(
-    "# Financial Tool 财务工具箱 v$Version",
+    "# FADT · Financial Audit Data Toolkit v$Version",
     "",
     "## 本版更新",
     "- 桌面端启动首帧改为深色品牌底色，并在前端加载期间显示启动提示，避免白屏。",
     "- 按钮、菜单、表格、输入框、提示、弹窗和正文统一为 14px 内容字号；标题保留层级。",
-    "- 免安装版主程序重命名为 Financial Tool.exe。",
+    "- 项目正式更名为 FADT（Financial Audit Data Toolkit）。",
+    "- 首次启动会迁移旧版汇总方案与 OCR 设置，不删除原始用户数据。",
     "- 数据源配置改为统一文件浏览页面，在同一列表中显示文件夹与 Excel 文件，支持混合多选和跨目录累计选择。",
     "- 新增 Windows 快速访问、常用位置和磁盘目录树；支持逐级展开、拖动连续选择、全选当前和反选当前。",
     "- 所选文件夹会递归扫描全部子文件夹；混合数据源自动去重并阻止源文件被覆盖为输出文件。",
@@ -111,10 +112,10 @@ $notes = @(
     "",
     "## 下载",
     "普通用户建议下载：",
-    "ExcelCellSummaryTool-v$Version-win64-setup.exe",
+    "FADT-v$Version-win64-setup.exe",
     "",
     "免安装用户下载：",
-    "ExcelCellSummaryTool-v$Version-win64-portable.zip",
+    "FADT-v$Version-win64-portable.zip",
     "",
     "## 隐私与许可",
     "- OCR 请求只发送到本机 127.0.0.1，不上传图片。",
@@ -126,11 +127,11 @@ $notes = @(
 $notes | Set-Content -LiteralPath $NotesPath -Encoding UTF8
 
 $hashLines = @()
-$hashLines += "$(Get-Sha256Hex -Path $PortableZip)  ExcelCellSummaryTool-v$Version-win64-portable.zip"
-$hashLines += "$(Get-Sha256Hex -Path $SetupTarget)  ExcelCellSummaryTool-v$Version-win64-setup.exe"
+$hashLines += "$(Get-Sha256Hex -Path $PortableZip)  FADT-v$Version-win64-portable.zip"
+$hashLines += "$(Get-Sha256Hex -Path $SetupTarget)  FADT-v$Version-win64-setup.exe"
 $hashLines | Set-Content -LiteralPath $HashPath -Encoding ASCII
 
-$PortableExeTarget = Join-Path $PortableStage 'Financial Tool.exe'
+$PortableExeTarget = Join-Path $PortableStage 'FADT.exe'
 Write-Host "portable exe: $PortableExeTarget"
 Write-Host "portable zip: $PortableZip"
 Write-Host "setup exe: $SetupTarget"

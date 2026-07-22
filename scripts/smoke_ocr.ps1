@@ -11,7 +11,7 @@ $RuntimeSource = Join-Path $ProjectRoot "third_party\umi-ocr\runtime"
 $RuntimeExe = Join-Path $RuntimeSource "Umi-OCR.exe"
 $ResolvedImage = (Resolve-Path -LiteralPath $ImagePath).Path
 $TempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-$SmokeRoot = Join-Path $TempRoot "ExcelCellSummaryTool-ocr-smoke-$PID"
+$SmokeRoot = Join-Path $TempRoot "FADT-ocr-smoke-$PID"
 $StartedProcess = $null
 
 if (-not (Test-Path -LiteralPath $RuntimeExe -PathType Leaf)) {

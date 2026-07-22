@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Financial Tool",
-  "version": "0.2.6",
+  "productName": "FADT",
+  "version": "0.2.7",
   "identifier": "com.yon9e.excel-cell-summary-tool",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Financial Tool 财务工具箱",
+        "title": "FADT · Financial Audit Data Toolkit",
         "backgroundColor": "#0e1b2d",
         "width": 1280,
         "height": 820,
@@ -39,6 +39,11 @@
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
       "../THIRD_PARTY_LICENSES": "THIRD_PARTY_LICENSES",
       "resources/list_quick_access.ps1": "list_quick_access.ps1"
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "resources/fadt-installer-hooks.nsh"
+      }
     },
     "icon": [
       "icons/32x32.png",

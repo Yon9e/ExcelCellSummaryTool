@@ -11,10 +11,16 @@ use std::time::Duration;
 use sysinfo::{Pid, System};
 use tauri::{AppHandle, Manager, Window};
 
+use crate::app_identity::{APP_DATA_DIRECTORY, LEGACY_APP_DATA_DIRECTORY};
+use crate::data_migration::write_bytes_atomically_if_missing;
+
 const UMI_VERSION: &str = "2.1.5";
 const UMI_RUNTIME_DIR: &str = "ocr-runtime";
 const UMI_RESOURCE_DIR: &str = "umi-ocr";
 const UMI_EXE: &str = "Umi-OCR.exe";
+const UMI_DATA_DIR: &str = "UmiOCR-data";
+const LEGACY_OCR_SETTINGS_FILES: &[&str] = &[".settings", ".pre_settings"];
+const LEGACY_OCR_MIGRATION_MARKER: &str = ".fadt-legacy-settings-migrated";
 const UMI_PORT: u16 = 12_240;
 const MAX_IMAGE_BYTES: u64 = 30 * 1024 * 1024;
 const MAX_IMAGE_PIXELS: usize = 16_000_000;
@@ -178,7 +184,7 @@ pub fn save_settings(app: &AppHandle, settings: OcrSettings) -> Result<OcrSettin
 
     if another_app_instance_is_running() {
         return Err(
-            "检测到另一个 Financial Tool 实例正在运行。请关闭其他实例后再保存 OCR 设置。"
+            "检测到另一个 FADT 实例正在运行。请关闭其他实例后再保存 OCR 设置。"
                 .to_string(),
         );
     }
@@ -194,19 +200,22 @@ pub fn save_settings(app: &AppHandle, settings: OcrSettings) -> Result<OcrSettin
 fn prepare_runtime_with_state(app: &AppHandle) -> Result<(PathBuf, bool), String> {
     let source = find_runtime_source(app)?;
     let destination = runtime_destination(app)?;
-    let marker = destination.join(".financial-tool-runtime-version");
+    let legacy_runtime = legacy_runtime_destination(app)?;
+    let marker = destination.join(".fadt-runtime-version");
     let installed_version = fs::read_to_string(&marker)
         .unwrap_or_default()
         .trim()
         .to_string();
 
     if destination.join(UMI_EXE).is_file() && installed_version == UMI_VERSION {
+        migrate_legacy_ocr_data_if_needed(&legacy_runtime, &destination)?;
         let settings_changed = ensure_runtime_settings(&destination)?;
         return Ok((destination, settings_changed));
     }
 
     fs::create_dir_all(&destination).map_err(|error| format!("无法创建 OCR 运行目录：{error}"))?;
     copy_runtime_tree(&source, &destination, &source)?;
+    migrate_legacy_ocr_data_if_needed(&legacy_runtime, &destination)?;
     fs::write(&marker, format!("{UMI_VERSION}\n"))
         .map_err(|error| format!("无法写入 OCR 版本标记：{error}"))?;
     let settings_changed = ensure_runtime_settings(&destination)?;
@@ -404,8 +413,43 @@ fn ocr_lock() -> &'static Mutex<()> {
 fn runtime_destination(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .local_data_dir()
-        .map(|path| path.join("ExcelCellSummaryTool").join(UMI_RUNTIME_DIR))
+        .map(|path| path.join(APP_DATA_DIRECTORY).join(UMI_RUNTIME_DIR))
         .map_err(|error| format!("无法确定 OCR 本地数据目录：{error}"))
+}
+
+fn legacy_runtime_destination(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .local_data_dir()
+        .map(|path| path.join(LEGACY_APP_DATA_DIRECTORY).join(UMI_RUNTIME_DIR))
+        .map_err(|error| format!("无法确定 OCR 本地数据目录：{error}"))
+}
+
+fn migrate_legacy_ocr_data_if_needed(
+    legacy_runtime: &Path,
+    destination_runtime: &Path,
+) -> Result<(), String> {
+    let marker = destination_runtime.join(LEGACY_OCR_MIGRATION_MARKER);
+    if marker.is_file() {
+        return Ok(());
+    }
+
+    let legacy_data = legacy_runtime.join(UMI_DATA_DIR);
+    if legacy_data.is_dir() {
+        let destination_data = destination_runtime.join(UMI_DATA_DIR);
+        for filename in LEGACY_OCR_SETTINGS_FILES {
+            let legacy_file = legacy_data.join(filename);
+            if !legacy_file.is_file() {
+                continue;
+            }
+            let contents = fs::read(&legacy_file)
+                .map_err(|error| format!("读取旧版 OCR 设置失败：{}：{error}", legacy_file.display()))?;
+            let target = destination_data.join(filename);
+            write_bytes_atomically_if_missing(&target, &contents, "迁移旧版 OCR 设置")?;
+        }
+    }
+
+    write_bytes_atomically_if_missing(&marker, b"complete\n", "写入旧版 OCR 设置迁移标记")?;
+    Ok(())
 }
 
 fn find_runtime_source(app: &AppHandle) -> Result<PathBuf, String> {
@@ -466,7 +510,7 @@ fn copy_runtime_tree(source: &Path, destination: &Path, source_root: &Path) -> R
 }
 
 fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
-    let data_dir = runtime.join("UmiOCR-data");
+    let data_dir = runtime.join(UMI_DATA_DIR);
     fs::create_dir_all(&data_dir).map_err(|error| format!("创建 OCR 数据目录失败：{error}"))?;
     let settings = data_dir.join(".settings");
     let original = match fs::read_to_string(&settings) {
@@ -488,7 +532,7 @@ fn ensure_runtime_settings(runtime: &Path) -> Result<bool, String> {
             ("logs.saveLogLevel", "ERROR"),
         ],
     );
-    // 这些项目由 Financial Tool 的本地 OCR 服务依赖，不能被原生设置页改写。
+    // 这些项目由 FADT 的本地 OCR 服务依赖，不能被原生设置页改写。
     content = upsert_ini_section_values(
         &content,
         "Global",
@@ -862,7 +906,7 @@ fn restart_private_service(runtime: &Path, listener_pid: Option<u32>) -> Result<
             thread::sleep(Duration::from_millis(100));
         }
         if netstat_listener_pid(UMI_PORT)?.is_some() {
-            return Err("OCR 服务未能停止，设置已保存，请重启 Financial Tool 后生效。".to_string());
+            return Err("OCR 服务未能停止，设置已保存，请重启 FADT 后生效。".to_string());
         }
     }
     ensure_service(runtime)
@@ -1339,5 +1383,67 @@ mod tests {
         ));
 
         fs::remove_dir_all(runtime).unwrap();
+    }
+
+    #[test]
+    fn migrates_only_legacy_ocr_settings_files() {
+        let root = std::env::temp_dir().join(format!(
+            "fadt-legacy-ocr-migration-{}",
+            std::process::id()
+        ));
+        let legacy_runtime = root.join("ExcelCellSummaryTool").join(UMI_RUNTIME_DIR);
+        let destination_runtime = root.join("FADT").join(UMI_RUNTIME_DIR);
+        let legacy_data = legacy_runtime.join(UMI_DATA_DIR);
+        fs::create_dir_all(legacy_data.join("logs")).unwrap();
+        fs::write(legacy_data.join(".settings"), "hotkey.screenshot=ctrl+alt+s\n").unwrap();
+        fs::write(legacy_data.join(".pre_settings"), "{\"last_pid\":0}\n").unwrap();
+        fs::write(legacy_data.join("custom.ini"), "keep=true\n").unwrap();
+        fs::write(legacy_data.join("logs").join("legacy.log"), "ignore").unwrap();
+
+        migrate_legacy_ocr_data_if_needed(&legacy_runtime, &destination_runtime).unwrap();
+
+        let destination_data = destination_runtime.join(UMI_DATA_DIR);
+        assert_eq!(
+            fs::read_to_string(destination_data.join(".settings")).unwrap(),
+            "hotkey.screenshot=ctrl+alt+s\n"
+        );
+        assert_eq!(
+            fs::read_to_string(destination_data.join(".pre_settings")).unwrap(),
+            "{\"last_pid\":0}\n"
+        );
+        assert!(!destination_data.join("custom.ini").exists());
+        assert!(!destination_data.join("logs").exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn preserves_existing_fadt_ocr_settings() {
+        let root = std::env::temp_dir().join(format!(
+            "fadt-existing-ocr-settings-{}",
+            std::process::id()
+        ));
+        let legacy_runtime = root.join("ExcelCellSummaryTool").join(UMI_RUNTIME_DIR);
+        let destination_runtime = root.join("FADT").join(UMI_RUNTIME_DIR);
+        let legacy_data = legacy_runtime.join(UMI_DATA_DIR);
+        let destination_data = destination_runtime.join(UMI_DATA_DIR);
+        fs::create_dir_all(&legacy_data).unwrap();
+        fs::create_dir_all(&destination_data).unwrap();
+        fs::write(legacy_data.join(".settings"), "legacy=true\n").unwrap();
+        fs::write(legacy_data.join(".pre_settings"), "legacy-pre=true\n").unwrap();
+        fs::write(destination_data.join(".settings"), "current=true\n").unwrap();
+
+        migrate_legacy_ocr_data_if_needed(&legacy_runtime, &destination_runtime).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(destination_data.join(".settings")).unwrap(),
+            "current=true\n"
+        );
+        assert_eq!(
+            fs::read_to_string(destination_data.join(".pre_settings")).unwrap(),
+            "legacy-pre=true\n"
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 }

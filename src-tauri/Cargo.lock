@@ -985,8 +985,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
 
 [[package]]
-name = "excel-cell-summary-tool"
-version = "0.2.6"
+name = "fadt"
+version = "0.2.7"
 dependencies = [
  "arboard",
  "base64 0.22.1",

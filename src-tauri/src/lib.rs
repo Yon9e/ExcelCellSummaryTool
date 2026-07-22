@@ -46,7 +46,9 @@ pub fn run() {
         });
 }
 
+mod app_identity;
 mod clipboard_text;
+mod data_migration;
 mod excel_summary;
 mod file_filter;
 mod models;

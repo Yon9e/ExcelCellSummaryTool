@@ -1,17 +1,17 @@
 [package]
-name = "excel-cell-summary-tool"
-version = "0.2.6"
-description = "Financial Tool 财务工具箱"
+name = "fadt"
+version = "0.2.7"
+description = "Financial Audit Data Toolkit"
 authors = ["Yon9e"]
 license = "GPL-3.0-only"
-repository = "https://github.com/Yon9e/ExcelCellSummaryTool"
+repository = "https://github.com/Yon9e/FADT"
 edition = "2021"
 rust-version = "1.77.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "excel_cell_summary_tool_lib"
+name = "fadt_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

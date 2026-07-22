@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
     <SupportWindowContent v-if="supportView !== 'main'" :view="supportView" />
     <div v-else class="app-shell">
     <aside class="side-nav">
-      <div class="brand"><div class="brand-mark"><FileSpreadsheet :size="26" /></div><div><h1>Financial Tool</h1><p v-if="brandSubtitle">{{ brandSubtitle }}</p></div></div>
+      <div class="brand"><div class="brand-mark"><FileSpreadsheet :size="26" /></div><div><h1>FADT</h1><p v-if="brandSubtitle">{{ brandSubtitle }}</p></div></div>
       <nav class="nav-list">
         <button v-for="page in workspacePages" :key="page.key" :class="activeWorkspace === page.key ? 'nav-item active' : 'nav-item'" @click="activeWorkspace = page.key">
           <component :is="page.icon" :size="22" /><span>{{ page.label }}</span>
@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
       </nav>
     </aside>
     <main class="workspace">
-      <header class="window-bar" data-tauri-drag-region><div><h2>Financial Tool 财务工具箱</h2><p>Excel 定向汇总、截图识字与剪贴板清洗</p></div><div class="window-actions"><ElButton class="soft-button" @click="openSupportWindow('help', activeWorkspace)"><Info :size="19" />帮助说明</ElButton></div></header>
+      <header class="window-bar" data-tauri-drag-region><div><h2>FADT · Financial Audit Data Toolkit</h2><p>面向财务与审计人员的一体化数据处理工具</p></div><div class="window-actions"><ElButton class="soft-button" @click="openSupportWindow('help', activeWorkspace)"><Info :size="19" />帮助说明</ElButton></div></header>
       <section class="content-panel">
         <div class="panel-heading"><div><p class="eyebrow">{{ activeKicker }}</p><h3>{{ activeTitle }}</h3></div>
           <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" class="toolbar">

@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import { getBrandSubtitle } from "./brandContent";
 
 describe("getBrandSubtitle", () => {
-  it("uses a financial tool subtitle without audit automation wording", () => {
+  it("uses the FADT English expansion as the brand subtitle", () => {
     const subtitle = getBrandSubtitle();
-    expect(subtitle).toBe("Excel 汇总与 OCR");
-    expect(subtitle).not.toContain("审计自动化");
+    expect(subtitle).toBe("Financial Audit Data Toolkit");
   });
 });

@@ -15,10 +15,12 @@ const dragOverlayTypographyRule =
   styles.match(/\.rule-drag-overlay,\s*\.rule-drag-overlay :where\([\s\S]*?\)\s*\{\s*font-size: var\(--content-font-size\);\s*\}/)?.[0] ?? "";
 
 describe("桌面端首帧与呈现规范", () => {
-  it("在前端加载前保持 Financial Tool 的深色首帧", () => {
+  it("在前端加载前保持 FADT 的深色首帧", () => {
+    expect(tauriConfig.productName).toBe("FADT");
     expect(tauriConfig.app.windows[0].backgroundColor).toBe("#0e1b2d");
     expect(indexHtml).toContain("background: #0e1b2d");
     expect(indexHtml).toContain('class="app-startup"');
+    expect(indexHtml).toContain("正在启动 FADT…");
   });
 
   it("以统一的 14px 作为全部内容文字的字号", () => {
@@ -30,8 +32,8 @@ describe("桌面端首帧与呈现规范", () => {
     expect(dragOverlayTypographyRule).toContain("span,");
   });
 
-  it("便携版与审计都使用 Financial Tool.exe", () => {
-    expect(releaseScript).toContain('"Financial Tool.exe"');
-    expect(auditScript).toContain('"Financial Tool.exe"');
+  it("便携版与审计都使用 FADT.exe", () => {
+    expect(releaseScript).toContain('"FADT.exe"');
+    expect(auditScript).toContain('"FADT.exe"');
   });
 });

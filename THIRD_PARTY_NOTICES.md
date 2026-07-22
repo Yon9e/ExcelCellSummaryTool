@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Financial Tool redistributes the unmodified Umi-OCR Rapid 2.1.5 Windows package as a separate
+FADT redistributes the unmodified Umi-OCR Rapid 2.1.5 Windows package as a separate
 local process. The original package URL and SHA-256 are recorded in
 `third_party/umi-ocr/manifest.json`.
 
