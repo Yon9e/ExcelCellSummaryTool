@@ -9,6 +9,7 @@ const portableScript = readFileSync(new URL("../scripts/build_portable.bat", imp
 const releaseScript = readFileSync(new URL("../scripts/make_release.ps1", import.meta.url), "utf-8");
 const auditScript = readFileSync(new URL("../scripts/audit_release.ps1", import.meta.url), "utf-8");
 const tauriConfig = readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf-8");
+const ciWorkflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf-8");
 
 describe("发布脚本隐私检查", () => {
   it("使用脚本所在目录，不包含开发者本机绝对路径", () => {
@@ -37,5 +38,10 @@ describe("发布脚本隐私检查", () => {
     expect(tauriConfig).toContain('"../LICENSE": "LICENSE"');
     expect(tauriConfig).toContain('"../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"');
     expect(tauriConfig).toContain('"../THIRD_PARTY_LICENSES": "THIRD_PARTY_LICENSES"');
+  });
+
+  it("干净的 CI runner 会在 Rust 门禁前准备被忽略的 OCR 资源目录", () => {
+    expect(ciWorkflow).toContain("准备 CI 资源占位目录");
+    expect(ciWorkflow).toContain("third_party\\umi-ocr\\runtime");
   });
 });

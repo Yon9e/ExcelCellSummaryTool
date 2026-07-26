@@ -52,6 +52,10 @@ jobs:
       - name: 构建前端
         run: npm run build
 
+      - name: 准备 CI 资源占位目录
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path .\third_party\umi-ocr\runtime -Force | Out-Null
+
       - name: 检查 Rust 格式
         run: cargo fmt --manifest-path .\src-tauri\Cargo.toml -- --check
 
