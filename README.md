@@ -106,8 +106,8 @@ npm run build
 
 - `release\portable\FADT\FADT.exe`
 - `release\portable\FADT\umi-ocr\Umi-OCR.exe`
-- `release\FADT-v0.2.7-win64-portable.zip`
-- `release\FADT-v0.2.7-win64-setup.exe`
+- `release\FADT-v0.2.8-win64-portable.zip`
+- `release\FADT-v0.2.8-win64-setup.exe`
 - `release\SHA256SUMS.txt`
 
 打包结束会运行 `scripts\audit_release.ps1`，核对 portable 与压缩包文件白名单，并扫描令牌、私钥、本机路径、用户配置和日志。

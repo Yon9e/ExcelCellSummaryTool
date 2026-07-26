@@ -15,14 +15,14 @@ if exist release rmdir /s /q release
 "%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\setup_umi_ocr.ps1 -Force
 if errorlevel 1 goto fail
 
-call npm install
+call npm ci
 if errorlevel 1 goto fail
 
 call npm run build
 if errorlevel 1 goto fail
 
 pushd src-tauri
-cargo test
+cargo test --locked
 if errorlevel 1 (
   popd
   goto fail
@@ -32,10 +32,10 @@ popd
 call npm run tauri:build
 if errorlevel 1 goto fail
 
-"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.2.6
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\make_release.ps1 -Version 0.2.8
 if errorlevel 1 goto fail
 
-"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\audit_release.ps1 -Version 0.2.6
+"%WINDOWS_POWERSHELL%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts\audit_release.ps1 -Version 0.2.8
 if errorlevel 1 goto fail
 
 echo Tauri portable build completed.

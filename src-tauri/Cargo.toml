@@ -1,6 +1,6 @@
 [package]
 name = "fadt"
-version = "0.2.7"
+version = "0.2.8"
 description = "Financial Audit Data Toolkit"
 authors = ["Yon9e"]
 license = "GPL-3.0-only"
