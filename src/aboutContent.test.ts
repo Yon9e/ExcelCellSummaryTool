@@ -12,9 +12,9 @@ describe("getAboutContent", () => {
     expect(allText).toContain("GNU GPL v3.0");
     expect(about.title).toBe("FADT · Financial Audit Data Toolkit");
     expect(about.description).toBe("面向财务与审计人员的一体化数据处理工具");
-    expect(about.version).toBe("v0.2.7");
+    expect(about.version).toBe("v0.3.0");
     expect(allText).toContain("github.com/Yon9e/FADT");
-    expect(allText).toContain("v0.2.7");
+    expect(allText).toContain("v0.3.0");
     expect(allText).not.toContain("赞助支持");
   });
 });

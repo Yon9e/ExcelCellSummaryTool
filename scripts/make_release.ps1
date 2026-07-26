@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$Version = "0.2.8",
+    [string]$Version = "0.3.0",
     [ValidatePattern('^[A-Za-z0-9._-]+$')]
     [string]$PortableDirectoryName = "portable"
 )

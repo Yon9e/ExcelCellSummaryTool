@@ -11,6 +11,8 @@ GitHub 仓库为 [Yon9e/FADT](https://github.com/Yon9e/FADT)。FADT 首次启动
 - 同时读取多个目标文件夹和手工多选的 Excel 文件；文件夹递归扫描全部子文件夹，再按规则定位指定 Sheet 与单元格并输出汇总工作簿。
 - 支持 `exact`、`contains`、`index` 三种 Sheet 定位模式和多 Sheet 命中时的人工选择。
 - 支持规则编辑、拖动排序、方案保存、实时进度和日志。
+- 采用面向财务与审计场景的 A+C 高密度工作台界面，支持 900×620 至 1440×900 的桌面窗口。
+- “设置”页提供自动、完整和精简三档界面动效；自动模式会遵循系统偏好并在低性能时仅对当前会话降级。
 - 集成 Umi-OCR Rapid v2.1.5，可一键截图识字并复制到剪贴板。
 - 支持 PNG、JPG、BMP、WEBP、TIFF 图片 OCR。
 - 支持识别截图中的可见 Excel 单元格，由用户点击或拖动选择输出列名和目标数据并生成候选规则。
@@ -106,8 +108,8 @@ npm run build
 
 - `release\portable\FADT\FADT.exe`
 - `release\portable\FADT\umi-ocr\Umi-OCR.exe`
-- `release\FADT-v0.2.8-win64-portable.zip`
-- `release\FADT-v0.2.8-win64-setup.exe`
+- `release\FADT-v0.3.0-win64-portable.zip`
+- `release\FADT-v0.3.0-win64-setup.exe`
 - `release\SHA256SUMS.txt`
 
 打包结束会运行 `scripts\audit_release.ps1`，核对 portable 与压缩包文件白名单，并扫描令牌、私钥、本机路径、用户配置和日志。

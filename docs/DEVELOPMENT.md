@@ -6,7 +6,7 @@
 
 FADT 是面向财务与审计人员的 Windows 桌面数据处理工具。应用在本机读取 Excel、调用本地 Umi-OCR、访问剪贴板和文件系统，不上传工作簿或图片。
 
-当前发布版本为 `0.2.7`。产品名、仓库名和主程序均已统一为 FADT；旧名 `ExcelCellSummaryTool` 仍用于兼容旧版用户数据和安装升级。
+当前发布版本为 `0.3.0`。产品名、仓库名和主程序均已统一为 FADT；旧名 `ExcelCellSummaryTool` 仍用于兼容旧版用户数据和安装升级。
 
 ## 2. 技术与目录
 
@@ -25,6 +25,8 @@ FADT 是面向财务与审计人员的 Windows 桌面数据处理工具。应用
 - `App.vue`：页面导航、汇总方案、数据源、规则和执行日志。
 - `SourcePickerModal.vue`：内置资源管理器式混合选择器。双击文件夹负责导航，勾选/单击/拖动负责选择。
 - `RuleImageImporter.vue`：截图预览缩放和平移、OCR 表格选择、候选规则编辑。
+- `SettingsPage.vue`、`stores/motion.ts`：界面动效偏好、系统减少动态效果与会话级性能降级。
+- `components/AppSidebar.vue`、`components/HighDensityShell.vue`：A 型主工作台与 C 型高密度工作区外壳。
 - `types.ts`：前后端共享数据形状的 TypeScript 定义。
 - 与组件并列的 `*.test.ts`：交互状态和纯逻辑单元测试。
 
