@@ -12,7 +12,7 @@ const aboutIconByTitle = {
 </script>
 
 <template>
-  <div class="about-page">
+  <div class="about-page" data-page="about">
     <section class="about-hero in-panel">
       <div class="about-app-mark"><FileSpreadsheet :size="54" /></div>
       <h1>{{ about.title }}</h1>

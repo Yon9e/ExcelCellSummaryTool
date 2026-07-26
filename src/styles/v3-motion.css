@@ -1,0 +1,70 @@
+.fadt-v3 .feature-content {
+  animation: v3-page-enter 220ms ease both;
+}
+
+.fadt-v3 :where(
+  .scheme-editor,
+  .scheme-library,
+  .motion-option,
+  .motion-status-card,
+  .about-card
+) {
+  animation: v3-card-enter 220ms ease both;
+}
+
+.fadt-v3 :where(button, input, select, textarea) {
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.fadt-v3 :where(button:not(:disabled)):active {
+  transform: translateY(1px);
+}
+
+@keyframes v3-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes v3-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fadt-v3[data-motion-level="reduced"] *,
+.fadt-v3[data-motion-level="reduced"] *::before,
+.fadt-v3[data-motion-level="reduced"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fadt-v3 *,
+  .fadt-v3 *::before,
+  .fadt-v3 *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

@@ -130,7 +130,7 @@ async function copyResult() {
 </script>
 
 <template>
-  <div class="text-cleaner-page">
+  <div class="text-cleaner-page" data-page="text-cleaner">
     <section class="cleaner-options" aria-label="文本清洗选项">
       <div class="cleaner-option-grid">
         <label v-for="option in optionLabels" :key="option.key" class="cleaner-toggle">

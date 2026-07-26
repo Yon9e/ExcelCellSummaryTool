@@ -85,7 +85,7 @@ async function copyResult() {
 </script>
 
 <template>
-  <div class="ocr-page">
+  <div class="ocr-page" data-page="ocr-capture">
     <section class="ocr-command-band">
       <div class="ocr-intro">
         <span class="ocr-kicker"><Sparkles :size="16" /> 本地 OCR</span>

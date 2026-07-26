@@ -1,0 +1,36 @@
+.fadt-v3 {
+  --v3-bg: #242031;
+  --v3-sidebar: #2e283a;
+  --v3-topbar: #2b2637;
+  --v3-card: #332d3f;
+  --v3-input: #25202f;
+  --v3-border: #463e51;
+  --v3-border-strong: #5b5068;
+  --v3-accent: #7c3aed;
+  --v3-info: #0ea5e9;
+  --v3-signal: #06b6d4;
+  --v3-success: #10b981;
+  --v3-warning: #f59e0b;
+  --v3-danger: #ef4444;
+  --v3-text: #f4f1f8;
+  --v3-text-secondary: #b7afc0;
+  --v3-text-muted: #81788e;
+  --v3-font-body: 14px;
+  --v3-font-small: 12px;
+  --v3-radius-sm: 8px;
+  --v3-radius-md: 12px;
+  --v3-radius-lg: 16px;
+  --v3-shadow-card: 0 12px 28px rgba(10, 7, 16, 0.24);
+  --v3-shadow-overlay: 0 24px 64px rgba(10, 7, 16, 0.46);
+  color: var(--v3-text);
+  background: var(--v3-bg);
+  font-family:
+    "Microsoft YaHei UI",
+    "Segoe UI",
+    Inter,
+    sans-serif;
+}
+
+.fadt-v3 :where(code, pre, .coordinate, .cell-reference) {
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+}

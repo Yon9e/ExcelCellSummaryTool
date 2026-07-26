@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { ElButton, ElConfigProvider } from "element-plus";
+import { ElConfigProvider } from "element-plus";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import "element-plus/es/components/button/style/css";
 import { invoke } from "@tauri-apps/api/core";
 import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm, message, save } from "@tauri-apps/plugin-dialog";
-import { BookOpen, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, GripVertical, Info, Plus, Rocket, Save, ScanSearch, Search, Trash2 } from "@lucide/vue";
+import { BookOpen, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, GripVertical, Plus, Rocket, Save, ScanSearch, Search, Trash2 } from "@lucide/vue";
 import type { CurrentFileEvent, FilterMode, LogEvent, OcrRuntimeStatus, OcrTabKey, ProgressEvent, Rule, Scheme, SheetChoice, SourcePreflightResult, SheetConflict, SheetMode, SummaryRequest, SummaryResult, SummaryTabKey, WorkspaceKey } from "./types";
-import { getBrandSubtitle } from "./brandContent";
 import { getFileDisplayName } from "./fileDisplay";
 import { getRuleRowKey } from "./ruleKeys";
 import { findRuleDragTarget, getRuleDragOriginStyle, getRuleDragOverlayLeft, getRuleDragOverlayTop, getRuleDragShift } from "./ruleDragPreview";
@@ -23,6 +22,10 @@ import { estimateRemainingSeconds, estimateSummarySeconds, formatSummaryDuration
 import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import SupportWindowContent from "./SupportWindowContent.vue";
 import AboutPage from "./AboutPage.vue";
+import AppSidebar from "./components/AppSidebar.vue";
+import AppTopbar from "./components/AppTopbar.vue";
+import PageIntro from "./components/PageIntro.vue";
+import WorkspaceTabs from "./components/WorkspaceTabs.vue";
 import OcrPage from "./OcrPage.vue";
 import OcrSettingsPage from "./OcrSettingsPage.vue";
 import RuleImageImporter from "./RuleImageImporter.vue";
@@ -35,12 +38,11 @@ import { useAppNavigationStore } from "./stores/appNavigation";
 import { useMotionStore } from "./stores/motion";
 
 const emptyRule: Rule = { output_column: "", sheet_mode: "exact", sheet_value: "", cell: "" };
-const sampleRules: Rule[] = [
+const exampleRules: Rule[] = [
   { output_column: "货币资金", sheet_mode: "exact", sheet_value: "资产负债表", cell: "B7" },
   { output_column: "营业收入", sheet_mode: "contains", sheet_value: "利润", cell: "C12" },
   { output_column: "第一个 Sheet 样例", sheet_mode: "index", sheet_value: "1", cell: "A1" },
 ];
-const brandSubtitle = getBrandSubtitle();
 const supportView = getSupportViewFromSearch(window.location.search);
 const browserPreview = !isTauriRuntime();
 let ocrStartupPromise: Promise<OcrRuntimeStatus> | null = null;
@@ -83,7 +85,7 @@ const deduplicateSources = ref(true);
 const outputFile = ref("");
 const keyword = ref("");
 const filterMode = ref<FilterMode>("include");
-const rules = ref<Rule[]>(ensureRuleIds(sampleRules.map((rule) => ({ ...rule }))));
+const rules = ref<Rule[]>([]);
 const selectedRuleIds = ref<Set<string>>(new Set());
 const ruleTableViewport = ref<HTMLElement | null>(null);
 const draggedRuleIndex = ref<number | null>(null);
@@ -120,6 +122,16 @@ const activeKicker = computed(() => activeWorkspace.value === "summary"
       : activeWorkspace.value === "settings"
         ? "偏好设置"
         : "应用信息");
+const activeDescription = computed(() => activeWorkspace.value === "summary"
+  ? "配置方案、数据源与读取规则，并在本机完成 Excel 定向汇总。"
+  : activeWorkspace.value === "ocr"
+    ? "调用本地 Umi-OCR 识别截图与剪贴板图片。"
+    : activeWorkspace.value === "text-cleaner"
+      ? "按财务工作习惯清洗剪贴板文本并实时预览结果。"
+      : activeWorkspace.value === "settings"
+        ? "管理本机界面偏好与性能降级策略。"
+        : "查看版本、产品定位和本机数据说明。");
+const breadcrumb = computed(() => `FADT / ${workspacePages.find((page) => page.key === activeWorkspace.value)?.label ?? ""} / ${activeTitle.value}`);
 const contentKey = computed(() => `${activeWorkspace.value}-${activeWorkspace.value === "summary" ? activeSummaryTab.value : activeWorkspace.value === "ocr" ? activeOcrTab.value : activeWorkspace.value}`);
 const percent = computed(() => total.value > 0 ? Math.round((processed.value / total.value) * 100) : 0);
 const selectedSchemeData = computed(() => schemes.value.find((scheme) => scheme.name === selectedScheme.value));
@@ -146,6 +158,12 @@ const taskEstimateText = computed(() => {
 watch(() => schemePageData.value.currentPage, (page) => { schemePage.value = page; });
 
 function getSheetConflictKey(conflict: SheetConflict) { return `${conflict.file_path}::${conflict.rule_index}`; }
+function selectSummaryTab(key: string) {
+  if (summaryTabs.some((tab) => tab.key === key)) activeSummaryTab.value = key as SummaryTabKey;
+}
+function selectOcrTab(key: string) {
+  if (ocrTabs.some((tab) => tab.key === key)) activeOcrTab.value = key as OcrTabKey;
+}
 function buildSheetChoices(conflicts: SheetConflict[], selections: Record<string, string>): SheetChoice[] {
   return conflicts.map((conflict) => ({ file_path: conflict.file_path, rule_index: conflict.rule_index, sheet_name: selections[getSheetConflictKey(conflict)] ?? conflict.matched_sheets[0] }));
 }
@@ -351,7 +369,7 @@ async function deleteSelectedRule() {
   rules.value = deleteSelectedRules(rules.value, selectedRuleIds.value); selectedRuleIds.value = new Set();
 }
 function fillSampleRules() {
-  rules.value = ensureRuleIds(sampleRules.map((rule) => ({ ...rule })));
+  rules.value = ensureRuleIds(exampleRules.map((rule) => ({ ...rule })));
   selectedRuleIds.value = new Set();
 }
 function appendImportedRules(importedRules: Rule[]) {
@@ -514,34 +532,26 @@ onBeforeUnmount(() => {
 <template>
   <ElConfigProvider :locale="zhCn">
     <SupportWindowContent v-if="supportView !== 'main'" :view="supportView" />
-    <div v-else class="app-shell" :data-motion="effectiveMotionLevel">
-    <aside class="side-nav">
-      <div class="brand"><div class="brand-mark"><FileSpreadsheet :size="26" /></div><div><h1>FADT</h1><p v-if="brandSubtitle">{{ brandSubtitle }}</p></div></div>
-      <nav class="nav-list">
-        <button v-for="page in workspacePages" :key="page.key" :class="activeWorkspace === page.key ? 'nav-item active' : 'nav-item'" @click="activeWorkspace = page.key">
-          <component :is="page.icon" :size="22" /><span>{{ page.label }}</span>
-        </button>
-      </nav>
-    </aside>
+    <div v-else class="app-shell fadt-v3" :data-motion-level="effectiveMotionLevel">
+    <AppSidebar :active-workspace="activeWorkspace" @navigate="activeWorkspace = $event" />
     <main class="workspace">
-      <header class="window-bar" data-tauri-drag-region><div><h2>FADT · Financial Audit Data Toolkit</h2><p>面向财务与审计人员的一体化数据处理工具</p></div><div class="window-actions"><ElButton class="soft-button" @click="openSupportWindow('help', activeWorkspace)"><Info :size="19" />帮助说明</ElButton></div></header>
+      <AppTopbar :breadcrumb="breadcrumb" @help="openSupportWindow('help', activeWorkspace)" />
+      <div class="app-main-body">
       <section class="content-panel">
-        <div class="panel-heading"><div><p class="eyebrow">{{ activeKicker }}</p><h3>{{ activeTitle }}</h3></div>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" class="toolbar">
+        <PageIntro :eyebrow="activeKicker" :title="activeTitle" :description="activeDescription">
+          <template v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" #actions>
+          <div class="toolbar">
             <button class="soft-button" @click="showRuleImageImporter = true"><ScanSearch :size="18" />图片生成规则</button>
             <button class="soft-button" @click="addRule"><Plus :size="18" />新增规则</button>
             <button class="danger-button" @click="deleteSelectedRule"><Trash2 :size="18" />删除选中</button>
             <button class="soft-button" @click="fillSampleRules"><BookOpen :size="18" />填充示例规则</button>
           </div>
-        </div>
-        <nav v-if="activeWorkspace === 'summary'" class="workspace-tabs" role="tablist" aria-label="汇总功能标签">
-          <button v-for="tab in summaryTabs" :key="tab.key" type="button" role="tab" :aria-selected="activeSummaryTab === tab.key" :class="activeSummaryTab === tab.key ? 'workspace-tab active' : 'workspace-tab'" @click="activeSummaryTab = tab.key"><component :is="tab.icon" :size="18" /><span>{{ tab.label }}</span></button>
-        </nav>
-        <nav v-if="activeWorkspace === 'ocr'" class="workspace-tabs" role="tablist" aria-label="截图识字标签">
-          <button v-for="tab in ocrTabs" :key="tab.key" type="button" role="tab" :aria-selected="activeOcrTab === tab.key" :class="activeOcrTab === tab.key ? 'workspace-tab active' : 'workspace-tab'" @click="activeOcrTab = tab.key"><component :is="tab.icon" :size="18" /><span>{{ tab.label }}</span></button>
-        </nav>
+          </template>
+        </PageIntro>
+        <WorkspaceTabs v-if="activeWorkspace === 'summary'" :tabs="summaryTabs" :active-key="activeSummaryTab" label="汇总功能标签" @select="selectSummaryTab" />
+        <WorkspaceTabs v-if="activeWorkspace === 'ocr'" :tabs="ocrTabs" :active-key="activeOcrTab" label="截图识字标签" @select="selectOcrTab" />
         <div class="feature-content" :key="contentKey">
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'scheme'" class="scheme-page">
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'scheme'" class="scheme-page" data-page="summary-scheme">
             <div class="scheme-editor"><div class="scheme-current"><label><span>当前方案</span><input ref="schemeNameInput" v-model="schemeName" placeholder="输入新方案名称，或从下方载入已有方案" /></label><small>{{ loadedSchemeData ? `最近保存：${formatSchemeSavedAt(loadedSchemeData.updated_at)}` : '新方案尚未保存' }}</small></div><div class="button-row scheme-actions">
               <button class="soft-button" @click="createNewScheme"><Plus :size="18" />新建方案</button>
               <button class="soft-button" :disabled="!selectedSchemeData" @click="loadSelectedScheme"><FolderOpen :size="18" />载入方案</button>
@@ -557,19 +567,35 @@ onBeforeUnmount(() => {
               <div class="scheme-pagination"><span>第 {{ schemePageData.currentPage }} / {{ schemePageData.totalPages }} 页</span><div><button type="button" class="icon-button" :disabled="schemePageData.currentPage <= 1" title="上一页" @click="schemePage = Math.max(1, schemePage - 1)"><ChevronLeft :size="19" /></button><button type="button" class="icon-button" :disabled="schemePageData.currentPage >= schemePageData.totalPages" title="下一页" @click="schemePage = Math.min(schemePageData.totalPages, schemePage + 1)"><ChevronRight :size="19" /></button></div></div>
             </section>
           </div>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'source'" class="form-grid">
-            <label class="wide-field"><span>目标文件/文件夹</span><div class="input-action source-action"><div class="source-selection-field" :class="{ 'is-placeholder': !targetPath && !targetPaths.length }" :title="sourceSelectionTitle">{{ sourceSelectionText }}</div><button class="soft-button source-picker-trigger" type="button" @click="showSourcePicker = true"><FolderOpen :size="17" />选择文件/文件夹</button></div><small class="field-hint">同一窗口可混合选择 Excel 文件与文件夹；双击文件夹进入内部，选中的文件夹将递归扫描全部子文件夹</small></label>
-            <label class="wide-field"><span>输出文件</span><div class="input-action"><div class="output-file-field"><span v-if="outputFile" class="output-file-name" :title="outputFile">{{ getFileDisplayName(outputFile) }}</span><span v-else class="output-file-placeholder">尚未选择输出文件</span></div><button class="soft-button" @click="browseOutputFile">浏览</button></div></label>
-            <label><span>关键词</span><input v-model="keyword" placeholder="为空时处理全部符合条件的 Excel 文件" /></label>
-            <label><span>筛选模式</span><select v-model="filterMode"><option value="include">包含关键词</option><option value="exclude">排除关键词</option></select></label>
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'source'" class="summary-source-page" data-page="summary-source">
+            <section class="audit-stat-grid" aria-label="数据源概览">
+              <article class="audit-stat-card accent-purple"><span>已选数据源</span><strong>{{ targetPaths.length || (targetPath ? 1 : 0) }}</strong><small>Excel 文件或文件夹</small></article>
+              <article class="audit-stat-card accent-cyan"><span>汇总规则</span><strong>{{ rules.length }}</strong><small>当前方案规则</small></article>
+              <article class="audit-stat-card accent-green"><span>筛选方式</span><strong>{{ keyword ? (filterMode === 'include' ? '包含' : '排除') : '全部' }}</strong><small>{{ keyword || '未设置关键词' }}</small></article>
+            </section>
+            <div class="form-grid audit-card">
+              <label class="wide-field"><span>目标文件/文件夹</span><div class="input-action source-action"><div class="source-selection-field" :class="{ 'is-placeholder': !targetPath && !targetPaths.length }" :title="sourceSelectionTitle">{{ sourceSelectionText }}</div><button class="soft-button source-picker-trigger" type="button" @click="showSourcePicker = true"><FolderOpen :size="17" />选择文件/文件夹</button></div><small class="field-hint">同一窗口可混合选择 Excel 文件与文件夹；双击文件夹进入内部，选中的文件夹将递归扫描全部子文件夹</small></label>
+              <label class="wide-field"><span>输出文件</span><div class="input-action"><div class="output-file-field"><span v-if="outputFile" class="output-file-name" :title="outputFile">{{ getFileDisplayName(outputFile) }}</span><span v-else class="output-file-placeholder">尚未选择输出文件</span></div><button class="soft-button" @click="browseOutputFile">浏览</button></div></label>
+              <label><span>关键词</span><input v-model="keyword" placeholder="为空时处理全部符合条件的 Excel 文件" /></label>
+              <label><span>筛选模式</span><select v-model="filterMode"><option value="include">包含关键词</option><option value="exclude">排除关键词</option></select></label>
+            </div>
           </div>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" ref="ruleTableViewport" class="table-wrap"><table><thead><tr><th class="drag-column" aria-label="规则选择和拖动排序"><span class="rule-row-controls"><input type="checkbox" :checked="rules.length > 0 && selectedRuleIds.size === rules.length" :indeterminate="selectedRuleIds.size > 0 && selectedRuleIds.size < rules.length" aria-label="全选规则" @change="toggleAllRules" /><GripVertical :size="18" /></span></th><th>输出列名</th><th>Sheet 模式</th><th>Sheet 值</th><th>单元格</th></tr></thead><tbody>
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" ref="ruleTableViewport" class="table-wrap" data-page="summary-rules"><table><thead><tr><th class="drag-column" aria-label="规则选择和拖动排序"><span class="rule-row-controls"><input type="checkbox" :checked="rules.length > 0 && selectedRuleIds.size === rules.length" :indeterminate="selectedRuleIds.size > 0 && selectedRuleIds.size < rules.length" aria-label="全选规则" @change="toggleAllRules" /><GripVertical :size="18" /></span></th><th>输出列名</th><th>Sheet 模式</th><th>Sheet 值</th><th>单元格</th></tr></thead><tbody>
             <tr v-for="(rule, index) in rules" :key="rule.id ?? getRuleRowKey(rule)" :class="['rule-drag-row', rule.id && selectedRuleIds.has(rule.id) ? 'selected-row' : '', draggedRuleIndex === index ? 'dragging-rule-origin' : '', dragOverRuleIndex === index && draggedRuleIndex !== index ? 'drag-over-row' : '', getRuleDragShift(index, draggedRuleIndex, dragOverRuleIndex)]" :style="getRuleDragOriginStyle(draggedRuleIndex === index)" :data-rule-id="rule.id" @pointerdown="beginRuleSelection($event, index)">
               <td class="drag-cell"><span class="rule-row-controls"><input v-if="rule.id" type="checkbox" :checked="selectedRuleIds.has(rule.id)" :aria-label="`选择第 ${index + 1} 条规则`" @click.stop @change="toggleRuleCheckbox(rule.id)" /><button type="button" class="drag-handle" :aria-label="`拖动第 ${index + 1} 条规则调整顺序`" title="拖动调整顺序" @click.stop @pointerdown="startRuleDrag($event, index)"><GripVertical :size="18" /></button></span></td>
               <td><input :value="rule.output_column" @input="updateRule(index, { output_column: ($event.target as HTMLInputElement).value })" /></td>
               <td><select :value="rule.sheet_mode" @change="updateRule(index, { sheet_mode: ($event.target as HTMLSelectElement).value as SheetMode })"><option value="exact">exact - 精确匹配</option><option value="contains">contains - 包含关键词</option><option value="index">index - 按序号</option></select></td>
               <td><input :value="rule.sheet_value" @input="updateRule(index, { sheet_value: ($event.target as HTMLInputElement).value })" /></td>
               <td><input :value="rule.cell" @input="updateRule(index, { cell: ($event.target as HTMLInputElement).value })" /></td>
+            </tr>
+            <tr v-if="rules.length === 0">
+              <td colspan="5">
+                <div class="audit-empty-state">
+                  <BookOpen :size="28" />
+                  <strong>尚未配置汇总规则</strong>
+                  <span>点击“新增规则”从空白开始，或使用“图片生成规则”。</span>
+                </div>
+              </td>
             </tr>
           </tbody></table></div>
           <Teleport to="body">
@@ -581,7 +607,7 @@ onBeforeUnmount(() => {
               <div class="rule-drag-overlay-cell"><span>{{ draggedRuleData.cell }}</span></div>
             </div>
           </Teleport>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'run'" class="run-layout"><div class="run-actions"><button class="primary-button" :disabled="running" @click="runSummary"><Rocket :size="20" />{{ running ? '正在汇总' : '开始汇总' }}</button><button class="soft-button" @click="logs = []">清空日志</button><div class="run-meta">当前处理文件：{{ currentFile }}</div><div class="run-estimate" aria-live="polite">{{ taskEstimateText }}</div><div class="run-count">已处理 {{ processed }} / {{ total }}</div></div><div class="progress-bar"><div :style="{ width: `${percent}%` }" /><span>{{ percent }}%</span></div><pre class="log-console">{{ logs.join('\n') }}</pre></div>
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'run'" class="run-layout" data-page="summary-run"><div class="run-actions audit-table-toolbar"><button class="primary-button" :disabled="running" @click="runSummary"><Rocket :size="20" />{{ running ? '正在汇总' : '开始汇总' }}</button><button class="soft-button" @click="logs = []">清空日志</button><div class="run-meta">当前处理文件：{{ currentFile }}</div><div class="run-estimate" aria-live="polite">{{ taskEstimateText }}</div><div class="run-count">已处理 {{ processed }} / {{ total }}</div></div><div class="progress-bar"><div :style="{ width: `${percent}%` }" /><span>{{ percent }}%</span></div><pre class="log-console audit-log-console">{{ logs.length ? logs.join('\n') : '等待任务开始。执行信息、警告和输出路径会显示在这里。' }}</pre></div>
           <OcrPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'capture'" :on-log="appendLog" />
           <OcrSettingsPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'settings'" :on-log="appendLog" />
           <TextCleanerPage v-if="activeWorkspace === 'text-cleaner'" :on-log="appendLog" :on-open-regex-tutorial="() => openSupportWindow('regex', 'text-cleaner')" />
@@ -589,6 +615,7 @@ onBeforeUnmount(() => {
           <AboutPage v-if="activeWorkspace === 'about'" />
         </div>
       </section>
+      </div>
     </main>
     <div v-if="sheetConflicts.length > 0 && pendingRequest" class="modal-backdrop" role="presentation"><div class="sheet-modal" role="dialog" aria-modal="true"><div class="sheet-modal-heading"><div><p class="eyebrow">Sheet 匹配冲突</p><h3>请选择实际要读取的 Sheet</h3></div><span>{{ sheetConflicts.length }} 项</span></div><div class="sheet-conflict-list">
       <label v-for="conflict in sheetConflicts" :key="getSheetConflictKey(conflict)" class="sheet-conflict-item"><span>{{ conflict.file_name }} / {{ conflict.output_column }} / 关键词：{{ conflict.sheet_value }}</span><select v-model="selectedSheets[getSheetConflictKey(conflict)]"><option v-for="sheetName in conflict.matched_sheets" :key="sheetName" :value="sheetName">{{ sheetName }}</option></select></label>

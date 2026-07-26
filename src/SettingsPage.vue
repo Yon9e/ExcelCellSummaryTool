@@ -48,7 +48,7 @@ const samplingLabel = computed(() => {
 </script>
 
 <template>
-  <section class="settings-page" aria-labelledby="motion-settings-title">
+  <section class="settings-page" data-page="settings" aria-labelledby="motion-settings-title">
     <div class="settings-intro">
       <div>
         <p class="eyebrow">界面与性能</p>
