@@ -1,6 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use serde::Serialize;
 
 use crate::models::{FILTER_MODE_EXCLUDE, FILTER_MODE_INCLUDE};
 
@@ -85,6 +87,50 @@ pub fn list_excel_files(
     Ok(files)
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct SourcePreflightResult {
+    pub valid_sources: Vec<String>,
+    pub duplicate_files: Vec<String>,
+    pub inaccessible_sources: Vec<String>,
+}
+
+pub fn preflight_source_paths(
+    paths: &[String],
+    keyword: &str,
+    filter_mode: &str,
+) -> Result<SourcePreflightResult, String> {
+    let mut occurrences: BTreeMap<String, (String, usize)> = BTreeMap::new();
+    let mut valid_sources = Vec::new();
+    let mut inaccessible_sources = Vec::new();
+    for source in paths {
+        let trimmed = source.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match list_excel_files(trimmed, keyword, filter_mode) {
+            Ok(files) => {
+                valid_sources.push(trimmed.to_string());
+                for file in files {
+                    let canonical = fs::canonicalize(&file).unwrap_or(file);
+                    let display = canonical.to_string_lossy().to_string();
+                    let key = display.to_ascii_lowercase();
+                    let entry = occurrences.entry(key).or_insert((display, 0));
+                    entry.1 += 1;
+                }
+            }
+            Err(error) => inaccessible_sources.push(format!("{trimmed}：{error}")),
+        }
+    }
+    let duplicate_files = occurrences
+        .into_values()
+        .filter_map(|(path, count)| (count > 1).then_some(path))
+        .collect();
+    Ok(SourcePreflightResult {
+        valid_sources,
+        duplicate_files,
+        inaccessible_sources,
+    })
+}
 fn validate_selected_excel_file(path: &Path) -> Result<PathBuf, String> {
     let file_name = path
         .file_name()
@@ -139,6 +185,64 @@ mod tests {
 
         let unsupported = list_excel_files(root.join("说明.txt"), "", "include").unwrap_err();
         assert!(unsupported.contains("仅支持"));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+    #[test]
+    fn preflight_reports_duplicate_when_folder_and_direct_file_overlap() {
+        let root =
+            std::env::temp_dir().join(format!("fadt-source-preflight-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let report = root.join("审计报告.xlsx");
+        fs::write(&report, "x").unwrap();
+
+        let result = preflight_source_paths(
+            &[
+                root.to_string_lossy().to_string(),
+                report.to_string_lossy().to_string(),
+            ],
+            "",
+            FILTER_MODE_INCLUDE,
+        )
+        .unwrap();
+
+        assert_eq!(result.duplicate_files.len(), 1);
+        assert!(result.duplicate_files[0].ends_with("审计报告.xlsx"));
+        assert!(result.inaccessible_sources.is_empty());
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn preflight_keeps_accessible_sources_and_uses_current_filter() {
+        let root = std::env::temp_dir().join(format!(
+            "fadt-source-preflight-filter-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("匹配报表.xlsx"), "x").unwrap();
+        let ignored = root.join("忽略底稿.xlsx");
+        fs::write(&ignored, "x").unwrap();
+        let missing = root.join("不存在");
+        let root_display = root.to_string_lossy().to_string();
+        let ignored_display = ignored.to_string_lossy().to_string();
+
+        let result = preflight_source_paths(
+            &[
+                root_display.clone(),
+                ignored_display.clone(),
+                missing.to_string_lossy().to_string(),
+            ],
+            "匹配",
+            FILTER_MODE_INCLUDE,
+        )
+        .unwrap();
+
+        assert_eq!(result.valid_sources, vec![root_display, ignored_display]);
+        assert_eq!(result.inaccessible_sources.len(), 1);
+        assert!(result.duplicate_files.is_empty());
 
         let _ = fs::remove_dir_all(&root);
     }

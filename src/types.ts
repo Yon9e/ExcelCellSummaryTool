@@ -5,6 +5,7 @@ export type SummaryTabKey = "scheme" | "source" | "rules" | "run";
 export type OcrTabKey = "capture" | "settings";
 
 export interface Rule {
+  id?: string;
   output_column: string;
   sheet_mode: SheetMode;
   sheet_value: string;
@@ -16,6 +17,7 @@ export interface Scheme {
   updated_at: string;
   target_folder: string;
   target_paths: string[];
+  deduplicate_sources?: boolean;
   output_file: string;
   keyword: string;
   filter_mode: FilterMode;
@@ -25,6 +27,7 @@ export interface Scheme {
 export interface SummaryRequest {
   target_folder: string;
   target_paths: string[];
+  deduplicate_sources: boolean;
   output_file: string;
   keyword: string;
   filter_mode: FilterMode;
@@ -61,6 +64,12 @@ export interface SourcePickerNavigation {
   quick_access: SourcePickerTreeEntry[];
   common_locations: SourcePickerTreeEntry[];
   drives: SourcePickerTreeEntry[];
+}
+
+export interface SourcePreflightResult {
+  valid_sources: string[];
+  duplicate_files: string[];
+  inaccessible_sources: string[];
 }
 
 export interface LogEvent {

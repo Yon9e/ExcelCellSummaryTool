@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Windows 前后端验证
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: 显示工具链版本
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+
+      - name: 安装前端依赖
+        run: npm ci
+
+      - name: TypeScript 类型检查
+        run: npm run typecheck
+
+      - name: 运行前端测试
+        run: npm test -- --run
+
+      - name: 构建前端
+        run: npm run build
+
+      - name: 检查 Rust 格式
+        run: cargo fmt --manifest-path .\src-tauri\Cargo.toml -- --check
+
+      - name: 运行 Rust Clippy
+        run: cargo clippy --manifest-path .\src-tauri\Cargo.toml --locked --all-targets -- -D warnings
+
+      - name: 运行 Rust 测试
+        run: cargo test --manifest-path .\src-tauri\Cargo.toml --locked

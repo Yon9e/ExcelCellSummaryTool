@@ -41,11 +41,33 @@ export interface DetectedSpreadsheetCell {
   bounds: CellBounds;
 }
 
+export type OcrDiagnosticAssignment = "assigned" | "ignored" | "unassigned";
+
+export type OcrDiagnosticReason =
+  | "column-header"
+  | "row-header"
+  | "missing-axes"
+  | "no-nearest-row"
+  | "no-nearest-column"
+  | "outside-cell-bounds";
+
+export interface OcrDiagnosticItem {
+  text: string;
+  confidence: number;
+  bounds: CellBounds;
+  centerX: number;
+  centerY: number;
+  assignment: OcrDiagnosticAssignment;
+  reason?: OcrDiagnosticReason;
+  cellAddress?: string;
+}
+
 export interface DetectedSpreadsheet {
   columns: DetectedColumn[];
   rows: DetectedRow[];
   cells: DetectedSpreadsheetCell[][];
   warnings: string[];
+  ocrDiagnostics: OcrDiagnosticItem[];
 }
 
 interface PositionedItem {
@@ -54,6 +76,8 @@ interface PositionedItem {
   centerY: number;
   x: number;
   y: number;
+  right: number;
+  bottom: number;
 }
 
 export function reconstructSpreadsheet(
@@ -92,7 +116,13 @@ export function reconstructSpreadsheet(
   if (!columnHeaders.length) warnings.push("未识别到 Excel 列字母，请让截图包含顶部列标题");
   if (!rowHeaders.length) warnings.push("未识别到 Excel 行号，请让截图包含左侧行标题");
   if (!columnHeaders.length || !rowHeaders.length) {
-    return { columns: [], rows: [], cells: [], warnings };
+    return {
+      columns: [],
+      rows: [],
+      cells: [],
+      warnings,
+      ocrDiagnostics: items.map((positioned) => createOcrDiagnostic(positioned, "unassigned", "missing-axes")),
+    };
   }
 
   const expandedColumns = expandHeaders(
@@ -111,6 +141,13 @@ export function reconstructSpreadsheet(
   );
 
   const columnAxes = addAxisBounds(expandedColumns, 0, buffer.width);
+  if (columnAxes.length) {
+    const rowHeaderRight = Math.max(
+      ...rowHeaders.map(({ positioned }) => Math.max(...positioned.item.box_points.map(([x]) => x))),
+    );
+    // rowHeaderLimit 仅用于筛选行号；A 列起点应从实际行号框右侧开始，避免短文本落入死区。
+    columnAxes[0].start = Math.min(columnAxes[0].start, rowHeaderRight + 4);
+  }
   const rowAxes = addAxisBounds(expandedRows, 0, buffer.height);
   const columns: DetectedColumn[] = columnAxes.map((axis, index) => ({
     ...axis,
@@ -123,26 +160,40 @@ export function reconstructSpreadsheet(
     number: expandedRows[index].value,
   }));
 
-  const headerItems = new Set([
-    ...columnHeaders.map(({ positioned }) => positioned.item),
-    ...rowHeaders.map(({ positioned }) => positioned.item),
-  ]);
+  const columnHeaderItems = new Set(columnHeaders.map(({ positioned }) => positioned.item));
+  const rowHeaderItems = new Set(rowHeaders.map(({ positioned }) => positioned.item));
   const assigned = new Map<string, PositionedItem[]>();
+  const ocrDiagnostics: OcrDiagnosticItem[] = [];
   for (const positioned of items) {
-    if (headerItems.has(positioned.item)) continue;
+    if (columnHeaderItems.has(positioned.item)) {
+      ocrDiagnostics.push(createOcrDiagnostic(positioned, "ignored", "column-header"));
+      continue;
+    }
+    if (rowHeaderItems.has(positioned.item)) {
+      ocrDiagnostics.push(createOcrDiagnostic(positioned, "ignored", "row-header"));
+      continue;
+    }
     const row = nearestAxis(rows, positioned.centerY);
     const column = nearestAxis(columns, positioned.centerX);
-    if (!row || !column) continue;
+    if (!row) {
+      ocrDiagnostics.push(createOcrDiagnostic(positioned, "unassigned", "no-nearest-row"));
+      continue;
+    }
+    if (!column) {
+      ocrDiagnostics.push(createOcrDiagnostic(positioned, "unassigned", "no-nearest-column"));
+      continue;
+    }
+    const address = `${column.label}${row.number}`;
     if (
-      positioned.centerX < column.start
-      || positioned.centerX > column.end
-      || positioned.centerY < row.start
-      || positioned.centerY > row.end
+      !axisOverlapsBounds(column, positioned.x, positioned.right)
+      || !axisOverlapsBounds(row, positioned.y, positioned.bottom)
     ) {
+      ocrDiagnostics.push(createOcrDiagnostic(positioned, "unassigned", "outside-cell-bounds", address));
       continue;
     }
     const key = `${row.index}:${column.index}`;
     assigned.set(key, [...(assigned.get(key) ?? []), positioned]);
+    ocrDiagnostics.push(createOcrDiagnostic(positioned, "assigned", undefined, address));
   }
 
   const cells = rows.map((row) => columns.map((column) => {
@@ -171,7 +222,7 @@ export function reconstructSpreadsheet(
     };
   }));
 
-  return { columns, rows, cells, warnings };
+  return { columns, rows, cells, warnings, ocrDiagnostics };
 }
 
 function positionItem(item: OcrTextItem): PositionedItem {
@@ -181,7 +232,30 @@ function positionItem(item: OcrTextItem): PositionedItem {
   const y = Math.min(...ys);
   const right = Math.max(...xs);
   const bottom = Math.max(...ys);
-  return { item, x, y, centerX: (x + right) / 2, centerY: (y + bottom) / 2 };
+  return { item, x, y, right, bottom, centerX: (x + right) / 2, centerY: (y + bottom) / 2 };
+}
+
+function createOcrDiagnostic(
+  positioned: PositionedItem,
+  assignment: OcrDiagnosticAssignment,
+  reason?: OcrDiagnosticReason,
+  cellAddress?: string,
+): OcrDiagnosticItem {
+  return {
+    text: positioned.item.text.trim(),
+    confidence: positioned.item.score,
+    bounds: {
+      x: positioned.x,
+      y: positioned.y,
+      width: positioned.right - positioned.x,
+      height: positioned.bottom - positioned.y,
+    },
+    centerX: positioned.centerX,
+    centerY: positioned.centerY,
+    assignment,
+    reason,
+    cellAddress,
+  };
 }
 
 function deduplicateItems(items: OcrTextItem[]): OcrTextItem[] {
@@ -258,6 +332,10 @@ function nearestAxis<T extends DetectedAxis>(axes: T[], value: number): T | null
   return [...axes].sort(
     (left, right) => Math.abs(left.center - value) - Math.abs(right.center - value),
   )[0] ?? null;
+}
+
+function axisOverlapsBounds(axis: DetectedAxis, start: number, end: number): boolean {
+  return end > axis.start && start < axis.end;
 }
 
 function joinOcrText(parts: string[]): string {

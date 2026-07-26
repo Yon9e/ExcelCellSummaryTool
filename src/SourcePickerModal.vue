@@ -268,8 +268,6 @@ function toggleAllVisible() {
 
 function onRowPointerDown(entry: SourcePickerEntry, event: PointerEvent) {
   if (event.button !== 0) return;
-  event.preventDefault();
-  tableWrap.value?.setPointerCapture(event.pointerId);
   dragSelection = {
     pointerId: event.pointerId,
     startPath: entry.path,
@@ -303,6 +301,7 @@ function updateDragSelection(path: string) {
     if (dragSelection.moved) selectedPaths.value = [...dragSelection.initialPaths];
     return;
   }
+  if (!dragSelection.moved) tableWrap.value?.setPointerCapture(dragSelection.pointerId);
   dragSelection.moved = true;
   selectedPaths.value = applyVisibleSourcePathRangeSelection(
     dragSelection.initialPaths,
@@ -479,7 +478,7 @@ onBeforeUnmount(() => {
             <table class="unified-picker-table">
               <thead><tr><th class="selection-column"><button class="entry-checkbox table-select-all" :class="{ checked: allVisibleSelected, partial: someVisibleSelected && !allVisibleSelected }" type="button" role="checkbox" :aria-checked="allVisibleSelected ? 'true' : someVisibleSelected ? 'mixed' : 'false'" aria-label="全选当前筛选结果" title="全选当前筛选结果" :disabled="!visibleEntries.length" @click="toggleAllVisible"><Check v-if="allVisibleSelected" :size="14" /><span v-else-if="someVisibleSelected" /></button></th><th>名称</th><th>修改日期</th><th>类型</th><th>大小</th></tr></thead>
               <tbody role="listbox" aria-label="可选择的数据源" aria-multiselectable="true">
-                <tr v-for="entry in visibleEntries" :key="entry.path" :data-source-path="entry.path" :class="{ selected: isSelected(entry.path) }" role="option" :aria-selected="isSelected(entry.path)" tabindex="0" @pointerdown="onRowPointerDown(entry, $event)" @pointerenter="onRowPointerEnter(entry, $event)" @pointerup="finishRowSelection" @dblclick.stop="openEntry(entry)" @keydown.enter.prevent="entry.is_directory ? openEntry(entry) : toggleSelection(entry)" @keydown.space.prevent="toggleSelection(entry)">
+                <tr v-for="entry in visibleEntries" :key="entry.path" :data-source-path="entry.path" :class="{ selected: isSelected(entry.path) }" role="option" :aria-selected="isSelected(entry.path)" :title="entry.is_directory ? '双击进入文件夹；单击或拖动可选择' : '单击或拖动可选择'" tabindex="0" @pointerdown="onRowPointerDown(entry, $event)" @pointerenter="onRowPointerEnter(entry, $event)" @pointerup="finishRowSelection" @dblclick.stop.prevent="openEntry(entry)" @keydown.enter.prevent="entry.is_directory ? openEntry(entry) : toggleSelection(entry)" @keydown.space.prevent="toggleSelection(entry)">
                   <td class="selection-column"><span class="entry-checkbox" :class="{ checked: isSelected(entry.path) }" aria-hidden="true"><Check v-if="isSelected(entry.path)" :size="14" /></span></td>
                   <td class="entry-name"><Folder v-if="entry.is_directory" :size="20" /><FileSpreadsheet v-else :size="20" /><span :title="entry.path">{{ entry.name }}</span></td>
                   <td>{{ formatModifiedAt(entry.modified_at) }}</td><td>{{ entryType(entry) }}</td><td>{{ formatSize(entry.size, entry.is_directory) }}</td>

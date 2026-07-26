@@ -5,8 +5,8 @@ import {
   fillCandidateValues,
   selectCellRange,
   selectSingleColumnRange,
+  toggleCellRange,
   toggleCellSelection,
-  toggleSingleCellPerRow,
   type CandidateRuleRow,
   type SelectableCell,
 } from "./ruleImageSelection";
@@ -39,15 +39,24 @@ describe("单元格选择", () => {
     expect([...selected]).toEqual(["A1", "B1", "A2", "B2"]);
   });
 
-  it("输出列名同一行只能选一个，新选择会替换该行原选择", () => {
-    const selected = toggleSingleCellPerRow(new Set(["A1", "A2"]), "B1", cells);
-    expect([...selected]).toEqual(["A2", "B1"]);
-    expect([...toggleSingleCellPerRow(selected, "B1", cells)]).toEqual(["A2"]);
+  it("输出列名同一行可以暂时选择多个单元格", () => {
+    const selected = toggleCellSelection(new Set(["A1", "A2"]), "B1");
+    expect([...selected]).toEqual(["A1", "A2", "B1"]);
   });
 
   it("输出列名拖动时只选择起始单元格所在列", () => {
     const selected = selectSingleColumnRange(cells, "A1", "B3");
     expect([...selected]).toEqual(["A1", "A2", "A3"]);
+  });
+
+  it("拖选未覆盖既有选择时追加整段单元格", () => {
+    const selected = toggleCellRange(cells, new Set(["A1"]), "B2", "B3");
+    expect([...selected]).toEqual(["A1", "B2", "B3"]);
+  });
+
+  it("拖选覆盖既有选择时逐格反选整段单元格", () => {
+    const selected = toggleCellRange(cells, new Set(["A1", "B2"]), "A1", "B2");
+    expect([...selected]).toEqual(["B1", "A2"]);
   });
 });
 
@@ -122,5 +131,16 @@ describe("候选规则填充", () => {
       { 1: "余额", 2: "余额" },
     );
     expect(duplicate.duplicateSuffixes).toEqual(["余额"]);
+  });
+
+  it("同一行选择多个输出列名时报告冲突且不生成配对", () => {
+    const result = buildRowSelectionPairs(
+      [cells[0], cells[1]],
+      [cells[1]],
+      {},
+    );
+
+    expect(result.duplicateOutputRowIndexes).toEqual([0]);
+    expect(result.pairs).toEqual([]);
   });
 });

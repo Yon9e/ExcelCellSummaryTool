@@ -1,3 +1,16 @@
+#[tauri::command]
+async fn preflight_source_paths(
+    paths: Vec<String>,
+    keyword: String,
+    filter_mode: String,
+) -> Result<file_filter::SourcePreflightResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        file_filter::preflight_source_paths(&paths, &keyword, &filter_mode)
+    })
+    .await
+    .map_err(|error| format!("预检数据源失败：{error}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -20,6 +33,7 @@ pub fn run() {
             save_scheme,
             delete_scheme,
             path_exists,
+            preflight_source_paths,
             get_ocr_runtime_status,
             prepare_ocr_runtime,
             get_ocr_settings,

@@ -6,8 +6,14 @@ pub const SHEET_MODE_EXACT: &str = "exact";
 pub const SHEET_MODE_CONTAINS: &str = "contains";
 pub const SHEET_MODE_INDEX: &str = "index";
 
+fn default_deduplicate_sources() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Rule {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     pub output_column: String,
     pub sheet_mode: String,
     pub sheet_value: String,
@@ -17,6 +23,12 @@ pub struct Rule {
 impl Rule {
     pub fn normalized(&self) -> Self {
         Self {
+            id: self
+                .id
+                .as_deref()
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_string),
             output_column: self.output_column.trim().to_string(),
             sheet_mode: self.sheet_mode.trim().to_ascii_lowercase(),
             sheet_value: self.sheet_value.trim().to_string(),
@@ -62,6 +74,8 @@ pub struct Scheme {
     pub target_folder: String,
     #[serde(default, alias = "target_files")]
     pub target_paths: Vec<String>,
+    #[serde(default = "default_deduplicate_sources")]
+    pub deduplicate_sources: bool,
     pub output_file: String,
     pub keyword: String,
     pub filter_mode: String,
@@ -77,7 +91,7 @@ impl Scheme {
         let mut target_paths = Vec::new();
         for path in &self.target_paths {
             let path = path.trim().to_string();
-            if !path.is_empty() && !target_paths.contains(&path) {
+            if !path.is_empty() {
                 target_paths.push(path);
             }
         }
@@ -86,6 +100,7 @@ impl Scheme {
             updated_at: self.updated_at.trim().to_string(),
             target_folder: self.target_folder.trim().to_string(),
             target_paths,
+            deduplicate_sources: self.deduplicate_sources,
             output_file: self.output_file.trim().to_string(),
             keyword: self.keyword.trim().to_string(),
             filter_mode: filter_mode.to_string(),
@@ -106,6 +121,8 @@ pub struct SummaryRequest {
     pub target_folder: String,
     #[serde(default, alias = "target_files")]
     pub target_paths: Vec<String>,
+    #[serde(default = "default_deduplicate_sources")]
+    pub deduplicate_sources: bool,
     pub output_file: String,
     pub keyword: String,
     pub filter_mode: String,
@@ -233,6 +250,7 @@ mod tests {
     #[test]
     fn validates_rule_and_cell_address() {
         let rule = Rule {
+            id: None,
             output_column: " 货币资金 ".to_string(),
             sheet_mode: "EXACT".to_string(),
             sheet_value: "资产负债表".to_string(),
@@ -250,9 +268,22 @@ mod tests {
     }
 
     #[test]
+    fn preserves_rule_id_when_serializing_a_scheme() {
+        let rule: Rule = serde_json::from_str(
+            r#"{"id":"rule-stable-1","output_column":"工资","sheet_mode":"contains","sheet_value":"附注","cell":"B1226"}"#,
+        )
+        .unwrap();
+
+        assert_eq!(rule.id.as_deref(), Some("rule-stable-1"));
+        let serialized = serde_json::to_value(rule).unwrap();
+        assert_eq!(serialized["id"], "rule-stable-1");
+    }
+
+    #[test]
     fn rejects_empty_rules_and_bad_index() {
         assert!(validate_rules(&[]).is_err());
         let error = validate_rules(&[Rule {
+            id: None,
             output_column: "列".to_string(),
             sheet_mode: "index".to_string(),
             sheet_value: "abc".to_string(),

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AlertTriangle, ClipboardPaste, FileImage, Images, MapPin, Plus, ScanSearch, Trash2, Type, X } from "@lucide/vue";
 import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
-import { buildRowSelectionPairs, createCandidateRuleRow, fillCandidatePairValues, fillCandidateValues, getSelectedCells, selectCellRange, selectSingleColumnRange, toggleCellSelection, toggleSingleCellPerRow, type CandidateRuleRow } from "./ruleImageSelection";
+import { buildRowSelectionPairs, createCandidateRuleRow, fillCandidatePairValues, fillCandidateValues, getSelectedCells, toggleCellRange, toggleCellSelection, type CandidateRuleRow } from "./ruleImageSelection";
 import { appendScreenshotItems, removeScreenshotItem, updateScreenshotItem, type ScreenshotWorkspaceItem } from "./ruleImageWorkspace";
 import { analyzeSpreadsheetImage, createBrowserDemoScreenshots, resolveDetectedColumnLabel, type AnalysisResult } from "./spreadsheetImageAnalysis";
 import type { DetectedSpreadsheetCell } from "./spreadsheetScreenshot";
@@ -29,16 +29,28 @@ const status = ref(browserPreview ? "已载入两张示例截图；点击缩略�
 const error = ref("");
 const isClosing = ref(false);
 const isDragging = ref(false);
-let dragState: { startId: string; target: SelectionTarget; moved: boolean } | null = null;
-
+const previewViewport = ref<HTMLElement | null>(null);
+const detectedSheetViewport = ref<HTMLElement | null>(null);
+const previewZoom = ref(1);
+const editedCellTexts = ref<Record<string, Record<string, string>>>({});
+const editingCell = ref<DetectedSpreadsheetCell | null>(null);
+const editingCellText = ref("");
+let dragState: { pointerId: number; startId: string; target: SelectionTarget; moved: boolean; initialSelection: Set<string> } | null = null;
+let lastSheetPointer: { x: number; y: number } | null = null;
+let sheetAutoScrollFrame: number | null = null;
+let previewPanState: { pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number } | null = null;
 const activeScreenshot = computed(() => screenshots.value.find(({ id }) => id === activeScreenshotId.value) ?? null);
 const analysis = computed(() => activeScreenshot.value?.analysis ?? null);
 const outputSelection = computed(() => activeScreenshot.value?.outputSelection ?? new Set<string>());
 const dataSelection = computed(() => activeScreenshot.value?.dataSelection ?? new Set<string>());
+const ocrDiagnostics = computed(() => analysis.value?.spreadsheet.ocrDiagnostics ?? []);
+const assignedOcrDiagnostics = computed(() => ocrDiagnostics.value.filter(({ assignment }) => assignment === "assigned"));
+const unassignedOcrDiagnostics = computed(() => ocrDiagnostics.value.filter(({ assignment }) => assignment === "unassigned"));
 const cells = computed(() => analysis.value?.spreadsheet.cells.flat() ?? []);
-const selectedOutputCells = computed(() => getSelectedCells(cells.value, outputSelection.value));
-const selectedDataCells = computed(() => getSelectedCells(cells.value, dataSelection.value));
-const activeColumnSuffixes = computed(() => activeScreenshotId.value ? dataColumnSuffixes.value[activeScreenshotId.value] ?? {} : {});
+const activeTextOverrides = computed(() => activeScreenshotId.value ? editedCellTexts.value[activeScreenshotId.value] ?? {} : {});
+const selectableCells = computed(() => cells.value.map((cell) => ({ ...cell, text: activeTextOverrides.value[cell.id] ?? cell.text })));
+const selectedOutputCells = computed(() => getSelectedCells(selectableCells.value, outputSelection.value));
+const selectedDataCells = computed(() => getSelectedCells(selectableCells.value, dataSelection.value));const activeColumnSuffixes = computed(() => activeScreenshotId.value ? dataColumnSuffixes.value[activeScreenshotId.value] ?? {} : {});
 const rowSelectionPairs = computed(() => buildRowSelectionPairs(selectedOutputCells.value, selectedDataCells.value, activeColumnSuffixes.value));
 const suffixColumns = computed(() => rowSelectionPairs.value.suffixColumnIndexes.map((columnIndex) => ({ columnIndex, label: resolveDetectedColumnLabel(analysis.value?.spreadsheet.columns ?? [], columnIndex) })));
 
@@ -97,6 +109,113 @@ function setActiveSelection(target: SelectionTarget, update: Set<string> | ((sel
     return target === "output" ? { ...item, outputSelection: next } : { ...item, dataSelection: next };
   });
 }
+function getDisplayedCellText(cell: DetectedSpreadsheetCell): string {
+  return activeTextOverrides.value[cell.id] ?? cell.text;
+}
+function startOutputCellEdit(cell: DetectedSpreadsheetCell) {
+  if (selectionTarget.value !== "output") return;
+  editingCell.value = cell;
+  editingCellText.value = getDisplayedCellText(cell);
+}
+function cancelOutputCellEdit() { editingCell.value = null; editingCellText.value = ""; }
+function confirmOutputCellEdit() {
+  const cell = editingCell.value;
+  const text = editingCellText.value.trim();
+  const screenshotId = activeScreenshotId.value;
+  if (!cell || !screenshotId) return;
+  if (!text) { error.value = "输出列名不能为空。"; return; }
+  editedCellTexts.value = {
+    ...editedCellTexts.value,
+    [screenshotId]: { ...(editedCellTexts.value[screenshotId] ?? {}), [cell.id]: text },
+  };
+  cancelOutputCellEdit();
+  status.value = `已确认修改 ${cell.address} 的输出列名文本；单元格坐标保持不变。`;
+}
+function zoomPreview(event: WheelEvent) {
+  const viewport = previewViewport.value;
+  if (!viewport) return;
+  const rect = viewport.getBoundingClientRect();
+  const previousZoom = previewZoom.value;
+  const nextZoom = Math.min(4, Math.max(0.25, previousZoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  if (nextZoom === previousZoom) return;
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const contentX = (viewport.scrollLeft + x) / previousZoom;
+  const contentY = (viewport.scrollTop + y) / previousZoom;
+  previewZoom.value = nextZoom;
+  requestAnimationFrame(() => {
+    viewport.scrollLeft = Math.max(0, contentX * nextZoom - x);
+    viewport.scrollTop = Math.max(0, contentY * nextZoom - y);
+  });
+}
+function beginPreviewPan(event: PointerEvent) {
+  if (event.button !== 1) return;
+  const viewport = previewViewport.value;
+  if (!viewport) return;
+  event.preventDefault();
+  viewport.focus();
+  viewport.setPointerCapture(event.pointerId);
+  previewPanState = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
+}
+function movePreviewPan(event: PointerEvent) {
+  const viewport = previewViewport.value;
+  if (!viewport || !previewPanState || event.pointerId !== previewPanState.pointerId) return;
+  viewport.scrollLeft = previewPanState.scrollLeft - (event.clientX - previewPanState.x);
+  viewport.scrollTop = previewPanState.scrollTop - (event.clientY - previewPanState.y);
+}
+function stopPreviewPan(event?: PointerEvent) {
+  const viewport = previewViewport.value;
+  if (viewport && previewPanState && (!event || event.pointerId === previewPanState.pointerId) && viewport.hasPointerCapture(previewPanState.pointerId)) viewport.releasePointerCapture(previewPanState.pointerId);
+  previewPanState = null;
+}
+function edgeScrollDelta(pointer: number, start: number, end: number): number {
+  const edge = 34;
+  if (pointer < start + edge) return -Math.min(22, Math.max(2, (start + edge - pointer) * 0.7));
+  if (pointer > end - edge) return Math.min(22, Math.max(2, (pointer - (end - edge)) * 0.7));
+  return 0;
+}
+function extendSheetDrag(cell: DetectedSpreadsheetCell) {
+  const drag = dragState;
+  if (!drag) return;
+  if (drag.startId !== cell.id) drag.moved = true;
+  setActiveSelection(drag.target, toggleCellRange(cells.value, drag.initialSelection, drag.startId, cell.id));
+}
+function updateSheetDragFromPoint() {
+  const pointer = lastSheetPointer;
+  if (!pointer || !dragState) return;
+  const target = document.elementFromPoint(pointer.x, pointer.y) as HTMLElement | null;
+  const cellId = target?.closest<HTMLElement>("td[data-cell-id]")?.dataset.cellId;
+  const cell = cells.value.find((item) => item.id === cellId);
+  if (cell) extendSheetDrag(cell);
+}
+function scheduleSheetAutoScroll() {
+  if (sheetAutoScrollFrame !== null) return;
+  const tick = () => {
+    sheetAutoScrollFrame = null;
+    const viewport = detectedSheetViewport.value;
+    const pointer = lastSheetPointer;
+    if (!viewport || !pointer || !dragState) return;
+    const rect = viewport.getBoundingClientRect();
+    const deltaX = edgeScrollDelta(pointer.x, rect.left, rect.right);
+    const deltaY = edgeScrollDelta(pointer.y, rect.top, rect.bottom);
+    if (!deltaX && !deltaY) return;
+    viewport.scrollBy({ left: deltaX, top: deltaY });
+    updateSheetDragFromPoint();
+    sheetAutoScrollFrame = requestAnimationFrame(tick);
+  };
+  sheetAutoScrollFrame = requestAnimationFrame(tick);
+}
+function formatOcrDiagnosticReason(reason?: string): string {
+  const labels: Record<string, string> = {
+    "missing-axes": "未识别到完整行列轴",
+    "no-nearest-row": "未找到对应行",
+    "no-nearest-column": "未找到对应列",
+    "outside-cell-bounds": "文本框未与目标单元格相交",
+    "column-header": "Excel 列标题",
+    "row-header": "Excel 行标题",
+  };
+  return reason ? labels[reason] ?? reason : "已分配";
+}
 function updateCandidate(id: string, patch: Partial<CandidateRuleRow>) { candidates.value = candidates.value.map((row) => row.id === id ? { ...row, ...patch } : row); }
 function updateDataColumnSuffix(columnIndex: number, value: string) { const id = activeScreenshotId.value; if (!id) return; dataColumnSuffixes.value = { ...dataColumnSuffixes.value, [id]: { ...(dataColumnSuffixes.value[id] ?? {}), [columnIndex]: value } }; }
 function addCandidate() { const row = createCandidateRuleRow(); candidates.value = [...candidates.value, row]; activeCandidateId.value = row.id; }
@@ -114,17 +233,55 @@ function applyPairedSelection() {
   if (!outputs.length || !data.length) { error.value = "请分别选择输出列名单元格和目标数据单元格。 "; return; }
   const result = buildRowSelectionPairs(outputs, data, activeColumnSuffixes.value);
   if (result.missingOutputRowIndexes.length) { const rows = result.missingOutputRowIndexes.map((rowIndex) => analysis.value?.spreadsheet.rows.find((row) => row.index === rowIndex)?.number ?? rowIndex + 1); error.value = `第 ${rows.join("、")} 行已选择目标数据，但没有选择输出列名。`; return; }
+  if (result.duplicateOutputRowIndexes.length) { const rows = result.duplicateOutputRowIndexes.map((rowIndex) => analysis.value?.spreadsheet.rows.find((row) => row.index === rowIndex)?.number ?? rowIndex + 1); error.value = `第 ${rows.join("、")} 行选择了多个输出列名；配对填充前每行只能保留一个。`; return; }
   const dataRows = new Set(data.map(({ rowIndex }) => rowIndex)); const outputOnlyRows = outputs.filter(({ rowIndex }) => !dataRows.has(rowIndex)).map(({ rowIndex }) => analysis.value?.spreadsheet.rows.find((row) => row.index === rowIndex)?.number ?? rowIndex + 1);
   if (outputOnlyRows.length) { error.value = `第 ${outputOnlyRows.join("、")} 行已选择输出列名，但没有选择目标数据。`; return; }
   if (result.missingSuffixColumnIndexes.length) { error.value = `同一行包含多个目标数据，请先填写 ${result.missingSuffixColumnIndexes.map((index) => resolveDetectedColumnLabel(analysis.value?.spreadsheet.columns ?? [], index)).join("、")} 列的区别后缀。`; return; }
   if (result.duplicateSuffixes.length) { error.value = `数据列后缀不能重复：${result.duplicateSuffixes.join("、")}。请为不同列填写不同后缀。`; return; }
   const filled = fillCandidatePairValues(candidates.value, activeCandidateId.value, result.pairs, overwrite.value); candidates.value = filled.rows; error.value = ""; status.value = `已按行配对填入 ${filled.filled} 条候选规则。`;
 }
-function handleCellPointerDown(event: PointerEvent, cell: DetectedSpreadsheetCell) { event.preventDefault(); dragState = { startId: cell.id, target: selectionTarget.value, moved: false }; isDragging.value = true; }
-function handleCellPointerEnter(event: PointerEvent, cell: DetectedSpreadsheetCell) { const drag = dragState; if (!drag || event.buttons !== 1) return; if (drag.startId !== cell.id) drag.moved = true; setActiveSelection(drag.target, drag.target === "output" ? selectSingleColumnRange(cells.value, drag.startId, cell.id) : selectCellRange(cells.value, drag.startId, cell.id)); }
-function handleCellPointerUp(cell: DetectedSpreadsheetCell) { const drag = dragState; if (!drag) return; if (!drag.moved) setActiveSelection(drag.target, (selected) => drag.target === "output" ? toggleSingleCellPerRow(selected, cell.id, cells.value) : toggleCellSelection(selected, cell.id)); stopDragging(); }
-function stopDragging() { dragState = null; isDragging.value = false; }
-function requestClose() { if (isClosing.value) return; if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { props.onClose(); return; } isClosing.value = true; }
+function handleCellPointerDown(event: PointerEvent, cell: DetectedSpreadsheetCell) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  const target = selectionTarget.value;
+  dragState = { pointerId: event.pointerId, startId: cell.id, target, moved: false, initialSelection: new Set(target === "output" ? outputSelection.value : dataSelection.value) };
+  lastSheetPointer = { x: event.clientX, y: event.clientY };
+  isDragging.value = true;
+  window.addEventListener("pointerup", stopDraggingFromPointer);
+  window.addEventListener("pointercancel", stopDraggingFromPointer);
+}
+function handleCellPointerEnter(event: PointerEvent, cell: DetectedSpreadsheetCell) {
+  if (!dragState || event.pointerId !== dragState.pointerId || event.buttons !== 1) return;
+  lastSheetPointer = { x: event.clientX, y: event.clientY };
+  extendSheetDrag(cell);
+  scheduleSheetAutoScroll();
+}
+function handleCellPointerMove(event: PointerEvent) {
+  if (!dragState || event.pointerId !== dragState.pointerId || event.buttons !== 1) return;
+  lastSheetPointer = { x: event.clientX, y: event.clientY };
+  updateSheetDragFromPoint();
+  scheduleSheetAutoScroll();
+}
+function handleCellPointerUp(event: PointerEvent, cell: DetectedSpreadsheetCell) {
+  const drag = dragState;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  if (!drag.moved) setActiveSelection(drag.target, (selected) => toggleCellSelection(selected, cell.id));
+  stopDragging();
+}
+function stopDraggingFromPointer(event: PointerEvent) {
+  if (dragState?.pointerId === event.pointerId) stopDragging();
+}
+function stopDragging() {
+  if (sheetAutoScrollFrame !== null) cancelAnimationFrame(sheetAutoScrollFrame);
+  sheetAutoScrollFrame = null;
+  lastSheetPointer = null;
+  dragState = null;
+  isDragging.value = false;
+  window.removeEventListener("pointerup", stopDraggingFromPointer);
+  window.removeEventListener("pointercancel", stopDraggingFromPointer);
+}
+onBeforeUnmount(() => { stopDragging(); stopPreviewPan(); });function requestClose() { if (isClosing.value) return; if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { props.onClose(); return; } isClosing.value = true; }
 function finishCloseAnimation(event: AnimationEvent) { if (isClosing.value && event.target === event.currentTarget) props.onClose(); }
 function confirmImport() {
   error.value = ""; const trimmed = sheetValue.value.trim();
@@ -153,14 +310,31 @@ function confirmImport() {
             <div v-for="(screenshot, index) in screenshots" :key="screenshot.id" :class="`screenshot-tab${screenshot.id === activeScreenshotId ? ' active' : ''}`"><button class="screenshot-tab-main" :disabled="busy" :title="`切换到 ${screenshot.name}`" @click="switchScreenshot(screenshot.id)"><span v-if="screenshot.demo || !screenshot.payload.data_url" class="screenshot-thumb demo"><FileImage :size="17" /></span><img v-else class="screenshot-thumb" :src="screenshot.payload.data_url" alt="" /><span class="screenshot-tab-copy"><strong>{{ index + 1 }}. {{ screenshot.name }}</strong><small>{{ screenshot.analysis ? "已生成表格" : "等待识别" }}</small></span></button><button class="screenshot-tab-remove" :disabled="busy" :title="`移除 ${screenshot.name}`" :aria-label="`移除 ${screenshot.name}`" @click="deleteScreenshot(screenshot.id)"><X :size="14" /></button></div>
             <span v-if="!screenshots.length" class="screenshot-tabs-empty">尚未添加截图</span>
           </div></div>
-          <div class="rule-import-preview compact-preview">
-            <div v-if="activeScreenshot?.demo && analysis" class="demo-screenshot-preview" :aria-label="`${activeScreenshot.name}示例预览`"><div class="demo-sheet-title">{{ activeScreenshot.name }}</div><table><thead><tr><th /><th v-for="column in analysis.spreadsheet.columns" :key="column.label">{{ column.label }}</th></tr></thead><tbody><tr v-for="row in analysis.spreadsheet.rows" :key="row.number"><th>{{ row.number }}</th><td v-for="cell in analysis.spreadsheet.cells[row.index]" :key="cell.id">{{ cell.text }}</td></tr></tbody></table></div>
-            <img v-else-if="activeScreenshot" :src="analysis?.previewUrl || activeScreenshot.payload.data_url" :alt="`${activeScreenshot.name}预览`" /><div v-else class="ocr-empty-state"><FileImage :size="36" /><strong>Excel 截图预览</strong></div>
-          </div>
-          <div class="cell-selection-toolbar"><div class="selection-targets" aria-label="单元格选择用途"><button :class="selectionTarget === 'output' ? 'active' : ''" title="每个 Excel 行只能选择一个输出列名单元格" @click="selectionTarget = 'output'"><Type :size="16" />输出列名 <span>{{ outputSelection.size }}</span></button><button :class="selectionTarget === 'data' ? 'active' : ''" title="每个 Excel 行可以选择多个目标数据单元格" @click="selectionTarget = 'data'"><MapPin :size="16" />目标数据 <span>{{ dataSelection.size }}</span></button></div><button class="text-button" @click="setActiveSelection(selectionTarget, new Set())">清除当前选择</button></div>
-          <div class="detected-sheet-wrap">
-            <table v-if="analysis?.spreadsheet.cells.length" :class="`detected-sheet${isDragging ? ' is-dragging' : ''}`" @pointerleave="stopDragging" @pointercancel="stopDragging"><thead><tr><th class="sheet-corner" /><th v-for="column in analysis.spreadsheet.columns" :key="column.label">{{ column.label }}</th></tr></thead><tbody><tr v-for="row in analysis.spreadsheet.rows" :key="row.number"><th>{{ row.number }}</th><td v-for="cell in analysis.spreadsheet.cells[row.index]" :key="cell.id" :class="[outputSelection.has(cell.id) && 'output-selected', dataSelection.has(cell.id) && 'data-selected'].filter(Boolean).join(' ')" :title="`${cell.address}${cell.text ? ` · ${cell.text}` : ''}`" @pointerdown="handleCellPointerDown($event, cell)" @pointerenter="handleCellPointerEnter($event, cell)" @pointerup="handleCellPointerUp(cell)"><span>{{ cell.text || " " }}</span><small>{{ cell.address }}</small></td></tr></tbody></table>
-            <div v-else class="candidate-empty">加载图片后点击“识别图片”，这里会生成可点击、可拖选的单元格表格。</div>
+          <div ref="previewViewport" class="rule-import-preview compact-preview preview-viewport" tabindex="0" aria-label="截图预览：滚轮缩放，按住中键可上下左右平移" @wheel.prevent="zoomPreview" @pointerdown="beginPreviewPan" @pointermove="movePreviewPan" @pointerup="stopPreviewPan" @pointercancel="stopPreviewPan">
+            <div v-if="activeScreenshot?.demo && analysis" class="demo-screenshot-preview preview-content" :style="{ zoom: previewZoom }" :aria-label="`${activeScreenshot.name}示例预览`"><div class="demo-sheet-title">{{ activeScreenshot.name }}</div><table><thead><tr><th /><th v-for="column in analysis.spreadsheet.columns" :key="column.label">{{ column.label }}</th></tr></thead><tbody><tr v-for="row in analysis.spreadsheet.rows" :key="row.number"><th>{{ row.number }}</th><td v-for="cell in analysis.spreadsheet.cells[row.index]" :key="cell.id">{{ cell.text }}</td></tr></tbody></table></div>
+            <img v-else-if="activeScreenshot" class="preview-content" :style="{ zoom: previewZoom }" :src="analysis?.previewUrl || activeScreenshot.payload.data_url" :alt="`${activeScreenshot.name}预览`" /><div v-else class="ocr-empty-state"><FileImage :size="36" /><strong>Excel 截图预览</strong></div>
+          </div>          <div class="cell-selection-toolbar"><div class="selection-targets" aria-label="单元格选择用途"><button :class="selectionTarget === 'output' ? 'active' : ''" title="同一 Excel 行可暂时选择多个输出列名单元格；配对前需保留一个" @click="selectionTarget = 'output'"><Type :size="16" />输出列名 <span>{{ outputSelection.size }}</span></button><button :class="selectionTarget === 'data' ? 'active' : ''" title="每个 Excel 行可以选择多个目标数据单元格" @click="selectionTarget = 'data'"><MapPin :size="16" />目标数据 <span>{{ dataSelection.size }}</span></button></div><button class="text-button" @click="setActiveSelection(selectionTarget, new Set())">清除当前选择</button></div>
+          <div ref="detectedSheetViewport" class="detected-sheet-wrap">
+            <details v-if="ocrDiagnostics.length" class="ocr-diagnostics">
+              <summary><span>OCR 诊断</span><small>原始 {{ analysis?.ocrItemCount ?? ocrDiagnostics.length }} · 去重后 {{ ocrDiagnostics.length }} · 已分配 {{ assignedOcrDiagnostics.length }} · 未分配 {{ unassignedOcrDiagnostics.length }}</small></summary>
+              <div class="ocr-diagnostics-body">
+                <p>仅当前窗口临时保留，用于判断文本未被 OCR 返回，还是未被归入单元格；不会写入方案或磁盘。</p>
+                <template v-if="unassignedOcrDiagnostics.length">
+                  <div class="ocr-diagnostic-heading"><span>未分配文本</span><small>原因与最近候选单元格</small></div>
+                  <ul class="ocr-diagnostic-list">
+                    <li v-for="(block, index) in unassignedOcrDiagnostics" :key="`${block.text}-${block.centerX}-${block.centerY}-${index}`"><strong>{{ block.text || "（空文本）" }}</strong><span>{{ formatOcrDiagnosticReason(block.reason) }}</span><small>置信度 {{ Math.round(block.confidence * 100) }}% · 中心 {{ Math.round(block.centerX) }}, {{ Math.round(block.centerY) }}<template v-if="block.cellAddress"> · 最近 {{ block.cellAddress }}</template></small></li>
+                  </ul>
+                </template>
+                <p v-else class="ocr-diagnostics-ok">所有去重后的 OCR 文本块都已归入单元格或被识别为行列标题。</p>
+                <details class="ocr-diagnostics-all">
+                  <summary>查看全部 OCR 文本块（去重后）</summary>
+                  <ul class="ocr-diagnostic-list all">
+                    <li v-for="(block, index) in ocrDiagnostics" :key="`${block.text}-${block.centerX}-${block.centerY}-all-${index}`"><strong>{{ block.text || "（空文本）" }}</strong><span>{{ block.assignment === "assigned" ? `已分配至 ${block.cellAddress ?? "单元格"}` : formatOcrDiagnosticReason(block.reason) }}</span><small>置信度 {{ Math.round(block.confidence * 100) }}% · 中心 {{ Math.round(block.centerX) }}, {{ Math.round(block.centerY) }}</small></li>
+                  </ul>
+                </details>
+              </div>
+            </details>
+            <table v-if="analysis?.spreadsheet.cells.length" :class="`detected-sheet${isDragging ? ' is-dragging' : ''}`" @pointermove="handleCellPointerMove" @pointercancel="stopDragging"><thead><tr><th class="sheet-corner" /><th v-for="column in analysis.spreadsheet.columns" :key="column.label">{{ column.label }}</th></tr></thead><tbody><tr v-for="row in analysis.spreadsheet.rows" :key="row.number"><th>{{ row.number }}</th><td v-for="cell in analysis.spreadsheet.cells[row.index]" :key="cell.id" :data-cell-id="cell.id" :class="[outputSelection.has(cell.id) && 'output-selected', dataSelection.has(cell.id) && 'data-selected'].filter(Boolean).join(' ')" :title="`${cell.address}${getDisplayedCellText(cell) ? ` · ${getDisplayedCellText(cell)}` : ''}`" @pointerdown="handleCellPointerDown($event, cell)" @pointerenter="handleCellPointerEnter($event, cell)" @pointerup="handleCellPointerUp($event, cell)" @dblclick="startOutputCellEdit(cell)"><span>{{ getDisplayedCellText(cell) || " " }}</span><small>{{ cell.address }}</small></td></tr></tbody></table>            <div v-else class="candidate-empty">加载图片后点击“识别图片”，这里会生成可点击、可拖选的单元格表格。</div>
           </div>
         </section>
         <section class="candidate-list rule-candidate-editor">
@@ -168,10 +342,16 @@ function confirmImport() {
           <div class="candidate-editor-actions"><button class="soft-button" @click="addCandidate"><Plus :size="16" />添加规则</button><button class="danger-button" @click="deleteActiveCandidate"><Trash2 :size="16" />删除当前</button><label class="overwrite-toggle"><input v-model="overwrite" type="checkbox" />覆盖已有内容</label></div>
           <div v-if="suffixColumns.length" class="data-suffix-prompt" role="group" aria-label="多目标数据列后缀"><div class="data-suffix-copy"><AlertTriangle :size="17" /><span><strong>同一行选择了多个目标数据</strong>请为不同数据列填写互不相同的后缀；配对时会追加到输出列名后。</span></div><div class="data-suffix-fields"><label v-for="item in suffixColumns" :key="item.columnIndex"><span>{{ item.label }} 列后缀</span><input :value="activeColumnSuffixes[item.columnIndex] ?? ''" placeholder="如：期末" @input="updateDataColumnSuffix(item.columnIndex, ($event.target as HTMLInputElement).value)" /></label></div></div>
           <div class="candidate-fill-actions"><button class="soft-button" @click="applyOutputSelection">仅填列名</button><button class="soft-button" @click="applyDataSelection">仅填坐标</button><button class="primary-button" @click="applyPairedSelection">配对填充</button></div>
-          <div class="candidate-editor-body"><div v-for="(candidate, index) in candidates" :key="candidate.id" :class="`candidate-row editable${candidate.id === activeCandidateId ? ' active' : ''}`" @click="activeCandidateId = candidate.id"><span class="candidate-index">{{ index + 1 }}</span><label><span>输出列名</span><input :value="candidate.outputColumn" @input="updateCandidate(candidate.id, { outputColumn: ($event.target as HTMLInputElement).value })" /></label><label class="candidate-cell"><span>目标单元格</span><input :value="candidate.cell" placeholder="如 B1150" @input="updateCandidate(candidate.id, { cell: ($event.target as HTMLInputElement).value.toUpperCase() })" /></label></div></div>
+          <div class="candidate-editor-body"><div v-for="(candidate, index) in candidates" :key="candidate.id" :class="`candidate-row editable${candidate.id === activeCandidateId ? ' active' : ''}`" @click="activeCandidateId = candidate.id"><span class="candidate-index">{{ index + 1 }}</span><label><span>输出列名</span><input :value="candidate.outputColumn" @input="updateCandidate(candidate.id, { outputColumn: ($event.target as HTMLInputElement).value })" /></label><label class="candidate-cell"><span>目标单元格</span><input :value="candidate.cell" placeholder="如 B1150" readonly aria-readonly="true" /></label></div></div>
         </section>
       </div>
-      <footer class="modal-actions"><button class="soft-button" @click="requestClose">取消</button><button class="primary-button" :disabled="busy" @click="confirmImport">追加到规则配置</button></footer>
+      <div v-if="editingCell" class="cell-text-editor-backdrop" role="presentation">
+        <form class="cell-text-editor" aria-label="修改输出列名" @submit.prevent="confirmOutputCellEdit">
+          <h4>修改输出列名</h4><p>{{ editingCell.address }} 的坐标和目标数据保持不变，仅修改识别文本。</p>
+          <input v-model="editingCellText" autofocus aria-label="输出列名文本" @keydown.esc.prevent="cancelOutputCellEdit" />
+          <div class="modal-actions"><button class="soft-button" type="button" @click="cancelOutputCellEdit">取消</button><button class="primary-button" type="submit">确认修改</button></div>
+        </form>
+      </div>      <footer class="modal-actions"><button class="soft-button" @click="requestClose">取消</button><button class="primary-button" :disabled="busy" @click="confirmImport">追加到规则配置</button></footer>
     </div>
   </div>
 </template>

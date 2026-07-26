@@ -62,7 +62,7 @@ function createDemoSpreadsheet(startRow: number, values: string[][]): DetectedSp
     const address = `${column.label}${row.number}`;
     return { id: address, address, rowIndex: row.index, columnIndex: column.index, rowNumber: row.number, columnLabel: column.label, text: values[row.index][column.index] ?? "", confidence: 0.99, bounds: { x: column.start, y: row.start, width: column.end - column.start, height: row.end - row.start } };
   }));
-  return { columns, rows, cells, warnings: [] };
+  return { columns, rows, cells, warnings: [], ocrDiagnostics: [] };
 }
 
 export async function analyzeSpreadsheetImage(dataUrl: string, recognizeImage: RecognizeImage): Promise<AnalysisResult> {

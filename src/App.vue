@@ -9,14 +9,16 @@ import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { confirm, message, save } from "@tauri-apps/plugin-dialog";
 import { BookOpen, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, GripVertical, Info, Plus, Rocket, Save, ScanSearch, Search, Trash2 } from "@lucide/vue";
-import type { CurrentFileEvent, FilterMode, LogEvent, OcrRuntimeStatus, OcrTabKey, ProgressEvent, Rule, Scheme, SheetChoice, SheetConflict, SheetMode, SummaryRequest, SummaryResult, SummaryTabKey, WorkspaceKey } from "./types";
+import type { CurrentFileEvent, FilterMode, LogEvent, OcrRuntimeStatus, OcrTabKey, ProgressEvent, Rule, Scheme, SheetChoice, SourcePreflightResult, SheetConflict, SheetMode, SummaryRequest, SummaryResult, SummaryTabKey, WorkspaceKey } from "./types";
 import { getBrandSubtitle } from "./brandContent";
 import { getFileDisplayName } from "./fileDisplay";
 import { getRuleRowKey } from "./ruleKeys";
 import { findRuleDragTarget, getRuleDragOriginStyle, getRuleDragOverlayLeft, getRuleDragOverlayTop, getRuleDragShift } from "./ruleDragPreview";
 import { reorderRules } from "./ruleOrdering";
+import { createEmptyRule, deleteSelectedRules, duplicateSelectedRules, ensureRuleIds, toggleRuleRange, toggleRuleSelection } from "./ruleSelection";
 import { getSchemePage } from "./schemePaging";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
+import { mergeUniqueSourcePaths } from "./sourcePaths";
 import { estimateRemainingSeconds, estimateSummarySeconds, formatSummaryDuration } from "./summaryEstimate";
 import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import SupportWindowContent from "./SupportWindowContent.vue";
@@ -43,6 +45,16 @@ let ocrStartupPromise: Promise<OcrRuntimeStatus> | null = null;
 let unlisteners: UnlistenFn[] = [];
 let ruleRowCenters: number[] = [];
 let activeRulePointerId: number | null = null;
+let activeRuleSelectionPointerId: number | null = null;
+let ruleSelectionAutoScrollFrame: number | null = null;
+
+interface RuleSelectionDragState {
+  startId: string;
+  initialSelection: Set<string>;
+  pointerX: number;
+  pointerY: number;
+  moved: boolean;
+}
 
 interface RuleDragOverlayState {
   left: number;
@@ -63,12 +75,13 @@ const schemeName = ref("");
 const schemeNameInput = ref<HTMLInputElement | null>(null);
 const targetPath = ref("");
 const targetPaths = ref<string[]>([]);
-const sourcePickerPaths = ref<string[]>([]);
+const deduplicateSources = ref(true);
 const outputFile = ref("");
 const keyword = ref("");
 const filterMode = ref<FilterMode>("include");
-const rules = ref<Rule[]>(sampleRules.map((rule) => ({ ...rule })));
-const selectedRuleIndex = ref<number | null>(null);
+const rules = ref<Rule[]>(ensureRuleIds(sampleRules.map((rule) => ({ ...rule }))));
+const selectedRuleIds = ref<Set<string>>(new Set());
+const ruleTableViewport = ref<HTMLElement | null>(null);
 const draggedRuleIndex = ref<number | null>(null);
 const dragOverRuleIndex = ref<number | null>(null);
 const ruleDragOverlay = ref<RuleDragOverlayState | null>(null);
@@ -85,9 +98,9 @@ const sheetConflicts = ref<SheetConflict[]>([]);
 const selectedSheets = ref<Record<string, string>>({});
 const pendingRequest = ref<SummaryRequest | null>(null);
 const showRuleImageImporter = ref(false);
+const showSourcePicker = ref(false);
 const schemeQuery = ref("");
 const schemePage = ref(1);
-const showSourcePicker = ref(false);
 
 const activeTitle = computed(() => activeWorkspace.value === "summary"
   ? summaryTabs.find((tab) => tab.key === activeSummaryTab.value)?.label ?? ""
@@ -107,6 +120,7 @@ const sourceSelectionText = computed(() => {
   return targetPath.value || "尚未选择目标文件或文件夹";
 });
 const sourceSelectionTitle = computed(() => targetPaths.value.length ? targetPaths.value.join("\n") : targetPath.value);
+const sourcePickerInitialPaths = computed(() => targetPaths.value.length ? [...targetPaths.value] : targetPath.value ? [targetPath.value] : []);
 const taskEstimateText = computed(() => {
   if (!running.value) return taskActualSeconds.value === null
     ? "本次预计：启动后计算"
@@ -138,7 +152,7 @@ async function refreshSchemes() {
   catch (error) { appendLog("WARN", String(error)); }
 }
 function collectScheme(): Scheme {
-  return { name: schemeName.value, updated_at: loadedSchemeData.value?.updated_at ?? "", target_folder: targetPath.value, target_paths: [...targetPaths.value], output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value };
+  return { name: schemeName.value, updated_at: loadedSchemeData.value?.updated_at ?? "", target_folder: targetPath.value, target_paths: [...targetPaths.value], deduplicate_sources: deduplicateSources.value, output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value };
 }
 function formatSchemeSavedAt(value: string) {
   if (!value) return "未记录保存时间";
@@ -150,8 +164,8 @@ async function confirmAction(text: string, title: string) {
   return browserPreview ? window.confirm(text) : confirm(text, { title, kind: "warning" });
 }
 function createNewScheme() {
-  selectedScheme.value = ""; loadedSchemeName.value = ""; schemeName.value = ""; targetPath.value = ""; targetPaths.value = []; outputFile.value = "";
-  keyword.value = ""; filterMode.value = "include"; rules.value = [{ ...emptyRule }]; selectedRuleIndex.value = 0;
+  selectedScheme.value = ""; loadedSchemeName.value = ""; schemeName.value = ""; targetPath.value = ""; targetPaths.value = []; deduplicateSources.value = true; outputFile.value = "";
+  keyword.value = ""; filterMode.value = "include"; const rule = createEmptyRule(); rules.value = [rule]; selectedRuleIds.value = new Set(rule.id ? [rule.id] : []);
   appendLog("INFO", "已新建空白方案，请输入名称并完成配置。");
   void nextTick(() => schemeNameInput.value?.focus());
 }
@@ -180,9 +194,10 @@ async function saveCurrentScheme() {
   } catch (error) { await message(String(error), { title: "保存方案失败", kind: "error" }); }
 }
 function applyScheme(scheme: Scheme) {
-  selectedScheme.value = scheme.name; loadedSchemeName.value = scheme.name; schemeName.value = scheme.name; targetPath.value = scheme.target_folder; targetPaths.value = [...(scheme.target_paths ?? [])];
+  selectedScheme.value = scheme.name; loadedSchemeName.value = scheme.name; schemeName.value = scheme.name; targetPath.value = scheme.target_folder; targetPaths.value = [...(scheme.target_paths ?? [])]; deduplicateSources.value = scheme.deduplicate_sources !== false;
   outputFile.value = scheme.output_file; keyword.value = scheme.keyword; filterMode.value = scheme.filter_mode;
-  rules.value = (scheme.rules.length ? scheme.rules : [emptyRule]).map((rule) => ({ ...rule }));
+  rules.value = ensureRuleIds((scheme.rules.length ? scheme.rules : [emptyRule]).map((rule) => ({ ...rule })));
+  selectedRuleIds.value = new Set();
   appendLog("INFO", `已载入方案：${scheme.name}`);
 }
 function loadSelectedScheme() { if (selectedSchemeData.value) applyScheme(selectedSchemeData.value); }
@@ -193,14 +208,39 @@ async function deleteSelectedScheme() {
   if (!await confirm(`确认删除方案“${name}”？`, { title: "删除方案", kind: "warning" })) return;
   await invoke("delete_scheme", { name }); appendLog("DONE", `方案已删除：${name}`); selectedScheme.value = ""; if (loadedSchemeName.value === name) loadedSchemeName.value = ""; await refreshSchemes();
 }
-function openSourcePicker() {
-  sourcePickerPaths.value = targetPaths.value.length ? [...targetPaths.value] : targetPath.value ? [targetPath.value] : [];
-  showSourcePicker.value = true;
-}
-function confirmSourcePicker(paths: string[]) {
-  targetPaths.value = [...paths];
+async function applySourcePaths(paths: string[]): Promise<boolean> {
+  const candidatePaths = mergeUniqueSourcePaths([], paths);
+  if (browserPreview) {
+    targetPaths.value = candidatePaths;
+    targetPath.value = "";
+    return true;
+  }
+  const preflight = await invoke<SourcePreflightResult>("preflight_source_paths", {
+    paths: candidatePaths,
+    keyword: keyword.value,
+    filterMode: filterMode.value,
+  });
+  if (preflight.duplicate_files.length) {
+    const autoDeduplicate = await confirm(`发现 ${preflight.duplicate_files.length} 个 Excel 文件会被多个已选文件或文件夹重复包含。是否自动去重？`, { title: "发现重复 Excel 文件", kind: "warning" });
+    if (autoDeduplicate) deduplicateSources.value = true;
+    else {
+      const preserveDuplicates = await confirm("选择“确定”会保留重复文件并在汇总时重复处理；选择“取消”将返回修改，不应用本次选择。", { title: "保留重复文件", kind: "warning" });
+      if (!preserveDuplicates) return false;
+      deduplicateSources.value = false;
+    }
+  }
+  targetPaths.value = preflight.valid_sources;
   targetPath.value = "";
-  showSourcePicker.value = false;
+  if (preflight.inaccessible_sources.length) await message(`以下数据源无法访问，已保留其他有效选择：\n${preflight.inaccessible_sources.join("\n")}`, { title: "部分数据源不可访问", kind: "warning" });
+  return true;
+}
+async function confirmSourcePicker(paths: string[]) {
+  try {
+    if (await applySourcePaths(paths)) showSourcePicker.value = false;
+  } catch (error) {
+    if (browserPreview) window.alert(`应用数据源选择失败：${String(error)}`);
+    else await message(String(error), { title: "应用数据源选择失败", kind: "error" });
+  }
 }
 async function browseOutputFile() {
   if (browserPreview) { window.alert(browserPreviewMessage); return; }
@@ -208,9 +248,103 @@ async function browseOutputFile() {
   if (typeof selected === "string") outputFile.value = selected;
 }
 function updateRule(index: number, patch: Partial<Rule>) { rules.value[index] = { ...rules.value[index], ...patch }; }
-function addRule() { rules.value.push({ ...emptyRule }); selectedRuleIndex.value = rules.value.length - 1; }
-function deleteSelectedRule() { if (selectedRuleIndex.value === null) return; rules.value.splice(selectedRuleIndex.value, 1); selectedRuleIndex.value = null; }
-function appendImportedRules(importedRules: Rule[]) { const start = rules.value.length; rules.value.push(...importedRules); selectedRuleIndex.value = start; appendLog("DONE", `已从 Excel 截图追加 ${importedRules.length} 条规则。`); }
+function ruleIdAt(index: number): string | null { return rules.value[index]?.id ?? null; }
+let ruleSelectionDrag: RuleSelectionDragState | null = null;
+function isRuleSelectionControl(target: EventTarget | null) {
+  return target instanceof HTMLElement && Boolean(target.closest("input, select, button, label, option, textarea"));
+}
+function allRuleIds() {
+  return rules.value.map((rule) => rule.id).filter((id): id is string => Boolean(id));
+}
+function updateRuleRangeSelectionAtPointer() {
+  if (!ruleSelectionDrag) return;
+  const element = document.elementFromPoint(ruleSelectionDrag.pointerX, ruleSelectionDrag.pointerY);
+  const row = element?.closest<HTMLTableRowElement>("tr[data-rule-id]");
+  const endId = row?.dataset.ruleId;
+  if (!endId) return;
+  ruleSelectionDrag.moved ||= endId !== ruleSelectionDrag.startId;
+  selectedRuleIds.value = toggleRuleRange(allRuleIds(), ruleSelectionDrag.initialSelection, ruleSelectionDrag.startId, endId);
+}
+function getRuleSelectionScrollDelta() {
+  const viewport = ruleTableViewport.value;
+  if (!viewport || !ruleSelectionDrag) return 0;
+  const rect = viewport.getBoundingClientRect();
+  const threshold = 34;
+  if (ruleSelectionDrag.pointerY < rect.top + threshold) return -Math.max(6, Math.ceil((rect.top + threshold - ruleSelectionDrag.pointerY) / 3));
+  if (ruleSelectionDrag.pointerY > rect.bottom - threshold) return Math.max(6, Math.ceil((ruleSelectionDrag.pointerY - (rect.bottom - threshold)) / 3));
+  return 0;
+}
+function scheduleRuleSelectionAutoScroll() {
+  if (ruleSelectionAutoScrollFrame !== null) return;
+  const tick = () => {
+    ruleSelectionAutoScrollFrame = null;
+    const viewport = ruleTableViewport.value;
+    const delta = getRuleSelectionScrollDelta();
+    if (!viewport || !ruleSelectionDrag || !delta) return;
+    viewport.scrollTop += delta;
+    updateRuleRangeSelectionAtPointer();
+    ruleSelectionAutoScrollFrame = requestAnimationFrame(tick);
+  };
+  ruleSelectionAutoScrollFrame = requestAnimationFrame(tick);
+}
+function beginRuleSelection(event: PointerEvent, index: number) {
+  if (event.button !== 0 || isRuleSelectionControl(event.target)) return;
+  const id = ruleIdAt(index); if (!id) return;
+  event.preventDefault();
+  activeRuleSelectionPointerId = event.pointerId;
+  ruleSelectionDrag = { startId: id, initialSelection: new Set(selectedRuleIds.value), pointerX: event.clientX, pointerY: event.clientY, moved: false };
+  window.addEventListener("pointermove", updateRuleSelectionFromPointer);
+  window.addEventListener("pointerup", finishRuleSelectionFromPointer);
+  window.addEventListener("pointercancel", cancelRuleSelectionFromPointer);
+}
+function updateRuleSelectionFromPointer(event: PointerEvent) {
+  if (event.pointerId !== activeRuleSelectionPointerId || !ruleSelectionDrag) return;
+  event.preventDefault();
+  ruleSelectionDrag.pointerX = event.clientX;
+  ruleSelectionDrag.pointerY = event.clientY;
+  updateRuleRangeSelectionAtPointer();
+  if (getRuleSelectionScrollDelta()) scheduleRuleSelectionAutoScroll();
+}
+function finishRuleSelectionFromPointer(event: PointerEvent) {
+  if (event.pointerId !== activeRuleSelectionPointerId || !ruleSelectionDrag) return;
+  event.preventDefault();
+  if (!ruleSelectionDrag.moved) {
+    selectedRuleIds.value = toggleRuleSelection(ruleSelectionDrag.initialSelection, ruleSelectionDrag.startId, event.ctrlKey);
+  }
+  endRuleSelection();
+}
+function cancelRuleSelectionFromPointer(event: PointerEvent) {
+  if (event.pointerId === activeRuleSelectionPointerId) endRuleSelection();
+}
+function endRuleSelection() {
+  activeRuleSelectionPointerId = null;
+  ruleSelectionDrag = null;
+  if (ruleSelectionAutoScrollFrame !== null) cancelAnimationFrame(ruleSelectionAutoScrollFrame);
+  ruleSelectionAutoScrollFrame = null;
+  window.removeEventListener("pointermove", updateRuleSelectionFromPointer);
+  window.removeEventListener("pointerup", finishRuleSelectionFromPointer);
+  window.removeEventListener("pointercancel", cancelRuleSelectionFromPointer);
+}
+function toggleRuleCheckbox(id: string) { selectedRuleIds.value = toggleRuleSelection(selectedRuleIds.value, id, true); }
+function toggleAllRules(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  selectedRuleIds.value = checked ? new Set(rules.value.map((rule) => rule.id).filter((id): id is string => Boolean(id))) : new Set();
+}
+function addRule() {
+  if (selectedRuleIds.value.size) { const result = duplicateSelectedRules(rules.value, selectedRuleIds.value); rules.value = result.rules; selectedRuleIds.value = result.selectedIds; return; }
+  const rule = createEmptyRule(); rules.value.push(rule); selectedRuleIds.value = new Set(rule.id ? [rule.id] : []);
+}
+async function deleteSelectedRule() {
+  if (!selectedRuleIds.value.size) { await message("请先勾选至少一条规则。", { title: "未选择规则", kind: "warning" }); return; }
+  rules.value = deleteSelectedRules(rules.value, selectedRuleIds.value); selectedRuleIds.value = new Set();
+}
+function fillSampleRules() {
+  rules.value = ensureRuleIds(sampleRules.map((rule) => ({ ...rule })));
+  selectedRuleIds.value = new Set();
+}
+function appendImportedRules(importedRules: Rule[]) {
+  const appended = ensureRuleIds(importedRules); rules.value.push(...appended); selectedRuleIds.value = new Set(appended.map((rule) => rule.id).filter((id): id is string => Boolean(id))); appendLog("DONE", `已从 Excel 截图追加 ${appended.length} 条规则。`);
+}
 function getSheetModeDisplay(mode: SheetMode) {
   return mode === "exact" ? "exact - 精确匹配" : mode === "contains" ? "contains - 包含关键词" : "index - 按序号";
 }
@@ -218,7 +352,7 @@ function startRuleDrag(event: PointerEvent, index: number) {
   if (event.button !== 0) return;
   event.preventDefault();
   activeRulePointerId = event.pointerId;
-  draggedRuleIndex.value = index; dragOverRuleIndex.value = index; selectedRuleIndex.value = index;
+  draggedRuleIndex.value = index; dragOverRuleIndex.value = index;
   const row = (event.currentTarget as HTMLElement | null)?.closest("tr");
   const table = row?.closest("table");
   ruleRowCenters = Array.from(table?.tBodies[0]?.rows ?? []).map((row) => {
@@ -269,8 +403,8 @@ function finishRuleDragFromPointer(event: PointerEvent) {
   const fromIndex = draggedRuleIndex.value;
   const toIndex = dragOverRuleIndex.value;
   if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
-    const result = reorderRules(rules.value, fromIndex, toIndex, selectedRuleIndex.value);
-    rules.value = result.rules; selectedRuleIndex.value = result.selectedIndex;
+    const result = reorderRules(rules.value, fromIndex, toIndex, null);
+    rules.value = result.rules;
   }
   endRuleDrag();
 }
@@ -288,7 +422,7 @@ function endRuleDrag() {
 async function runSummary() {
   if (browserPreview) { window.alert(browserPreviewMessage); return; }
   if (running.value) return;
-  const request: SummaryRequest = { target_folder: targetPath.value, target_paths: [...targetPaths.value], output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value, sheet_choices: [] };
+  const request: SummaryRequest = { target_folder: targetPath.value, target_paths: [...targetPaths.value], deduplicate_sources: deduplicateSources.value, output_file: outputFile.value, keyword: keyword.value, filter_mode: filterMode.value, rules: rules.value, sheet_choices: [] };
   if ((!targetPath.value && !targetPaths.value.length) || !outputFile.value) { await message("请先选择目标文件或文件夹，以及输出文件。", { title: "配置不完整", kind: "warning" }); return; }
   if (!rules.value.length) { await message("请至少配置一条规则。", { title: "规则为空", kind: "warning" }); return; }
   if (await invoke<boolean>("path_exists", { path: outputFile.value }) && !await confirm("输出文件已存在，是否覆盖？", { title: "确认覆盖", kind: "warning" })) return;
@@ -359,6 +493,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unlisteners.forEach((unlisten) => unlisten());
   endRuleDrag();
+  endRuleSelection();
 });
 </script>
 
@@ -382,7 +517,7 @@ onBeforeUnmount(() => {
             <button class="soft-button" @click="showRuleImageImporter = true"><ScanSearch :size="18" />图片生成规则</button>
             <button class="soft-button" @click="addRule"><Plus :size="18" />新增规则</button>
             <button class="danger-button" @click="deleteSelectedRule"><Trash2 :size="18" />删除选中</button>
-            <button class="soft-button" @click="rules = sampleRules.map((rule) => ({ ...rule }))"><BookOpen :size="18" />填充示例规则</button>
+            <button class="soft-button" @click="fillSampleRules"><BookOpen :size="18" />填充示例规则</button>
           </div>
         </div>
         <nav v-if="activeWorkspace === 'summary'" class="workspace-tabs" role="tablist" aria-label="汇总功能标签">
@@ -409,14 +544,14 @@ onBeforeUnmount(() => {
             </section>
           </div>
           <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'source'" class="form-grid">
-            <label class="wide-field"><span>目标文件/文件夹</span><div class="input-action source-action"><div class="source-selection-field" :class="{ 'is-placeholder': !targetPath && !targetPaths.length }" :title="sourceSelectionTitle">{{ sourceSelectionText }}</div><button class="soft-button source-picker-trigger" type="button" @click="openSourcePicker"><FolderOpen :size="17" />选择文件/文件夹</button></div><small class="field-hint">支持同时添加多个文件和文件夹；文件夹会递归扫描全部子文件夹</small></label>
+            <label class="wide-field"><span>目标文件/文件夹</span><div class="input-action source-action"><div class="source-selection-field" :class="{ 'is-placeholder': !targetPath && !targetPaths.length }" :title="sourceSelectionTitle">{{ sourceSelectionText }}</div><button class="soft-button source-picker-trigger" type="button" @click="showSourcePicker = true"><FolderOpen :size="17" />选择文件/文件夹</button></div><small class="field-hint">同一窗口可混合选择 Excel 文件与文件夹；双击文件夹进入内部，选中的文件夹将递归扫描全部子文件夹</small></label>
             <label class="wide-field"><span>输出文件</span><div class="input-action"><div class="output-file-field"><span v-if="outputFile" class="output-file-name" :title="outputFile">{{ getFileDisplayName(outputFile) }}</span><span v-else class="output-file-placeholder">尚未选择输出文件</span></div><button class="soft-button" @click="browseOutputFile">浏览</button></div></label>
             <label><span>关键词</span><input v-model="keyword" placeholder="为空时处理全部符合条件的 Excel 文件" /></label>
             <label><span>筛选模式</span><select v-model="filterMode"><option value="include">包含关键词</option><option value="exclude">排除关键词</option></select></label>
           </div>
-          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" class="table-wrap"><table><thead><tr><th class="drag-column" aria-label="拖动排序" title="拖动左侧手柄调整规则顺序"><GripVertical :size="18" /></th><th>输出列名</th><th>Sheet 模式</th><th>Sheet 值</th><th>单元格</th></tr></thead><tbody>
-            <tr v-for="(rule, index) in rules" :key="getRuleRowKey(rule)" :class="['rule-drag-row', selectedRuleIndex === index ? 'selected-row' : '', draggedRuleIndex === index ? 'dragging-rule-origin' : '', dragOverRuleIndex === index && draggedRuleIndex !== index ? 'drag-over-row' : '', getRuleDragShift(index, draggedRuleIndex, dragOverRuleIndex)]" :style="getRuleDragOriginStyle(draggedRuleIndex === index)" @click="selectedRuleIndex = index">
-              <td class="drag-cell"><button type="button" class="drag-handle" :aria-label="`拖动第 ${index + 1} 条规则调整顺序`" title="拖动调整顺序" @click.stop @pointerdown="startRuleDrag($event, index)"><GripVertical :size="20" /></button></td>
+          <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'rules'" ref="ruleTableViewport" class="table-wrap"><table><thead><tr><th class="drag-column" aria-label="规则选择和拖动排序"><span class="rule-row-controls"><input type="checkbox" :checked="rules.length > 0 && selectedRuleIds.size === rules.length" :indeterminate="selectedRuleIds.size > 0 && selectedRuleIds.size < rules.length" aria-label="全选规则" @change="toggleAllRules" /><GripVertical :size="18" /></span></th><th>输出列名</th><th>Sheet 模式</th><th>Sheet 值</th><th>单元格</th></tr></thead><tbody>
+            <tr v-for="(rule, index) in rules" :key="rule.id ?? getRuleRowKey(rule)" :class="['rule-drag-row', rule.id && selectedRuleIds.has(rule.id) ? 'selected-row' : '', draggedRuleIndex === index ? 'dragging-rule-origin' : '', dragOverRuleIndex === index && draggedRuleIndex !== index ? 'drag-over-row' : '', getRuleDragShift(index, draggedRuleIndex, dragOverRuleIndex)]" :style="getRuleDragOriginStyle(draggedRuleIndex === index)" :data-rule-id="rule.id" @pointerdown="beginRuleSelection($event, index)">
+              <td class="drag-cell"><span class="rule-row-controls"><input v-if="rule.id" type="checkbox" :checked="selectedRuleIds.has(rule.id)" :aria-label="`选择第 ${index + 1} 条规则`" @click.stop @change="toggleRuleCheckbox(rule.id)" /><button type="button" class="drag-handle" :aria-label="`拖动第 ${index + 1} 条规则调整顺序`" title="拖动调整顺序" @click.stop @pointerdown="startRuleDrag($event, index)"><GripVertical :size="18" /></button></span></td>
               <td><input :value="rule.output_column" @input="updateRule(index, { output_column: ($event.target as HTMLInputElement).value })" /></td>
               <td><select :value="rule.sheet_mode" @change="updateRule(index, { sheet_mode: ($event.target as HTMLSelectElement).value as SheetMode })"><option value="exact">exact - 精确匹配</option><option value="contains">contains - 包含关键词</option><option value="index">index - 按序号</option></select></td>
               <td><input :value="rule.sheet_value" @input="updateRule(index, { sheet_value: ($event.target as HTMLInputElement).value })" /></td>
@@ -443,7 +578,7 @@ onBeforeUnmount(() => {
     <div v-if="sheetConflicts.length > 0 && pendingRequest" class="modal-backdrop" role="presentation"><div class="sheet-modal" role="dialog" aria-modal="true"><div class="sheet-modal-heading"><div><p class="eyebrow">Sheet 匹配冲突</p><h3>请选择实际要读取的 Sheet</h3></div><span>{{ sheetConflicts.length }} 项</span></div><div class="sheet-conflict-list">
       <label v-for="conflict in sheetConflicts" :key="getSheetConflictKey(conflict)" class="sheet-conflict-item"><span>{{ conflict.file_name }} / {{ conflict.output_column }} / 关键词：{{ conflict.sheet_value }}</span><select v-model="selectedSheets[getSheetConflictKey(conflict)]"><option v-for="sheetName in conflict.matched_sheets" :key="sheetName" :value="sheetName">{{ sheetName }}</option></select></label>
     </div><div class="modal-actions"><button class="soft-button" @click="cancelSheetChoice">取消</button><button class="primary-button" @click="continueWithSheetChoices">使用选择继续汇总</button></div></div></div>
-    <SourcePickerModal v-if="showSourcePicker" :initial-paths="sourcePickerPaths" :on-close="() => { showSourcePicker = false; }" :on-confirm="confirmSourcePicker" />
+    <SourcePickerModal v-if="showSourcePicker" :initial-paths="sourcePickerInitialPaths" :on-close="() => { showSourcePicker = false; }" :on-confirm="confirmSourcePicker" />
     <RuleImageImporter v-if="showRuleImageImporter" :on-close="() => { showRuleImageImporter = false; }" :on-append="appendImportedRules" />
     </div>
   </ElConfigProvider>

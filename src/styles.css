@@ -727,7 +727,7 @@ table {
 }
 
 .drag-column {
-  width: 58px;
+  width: 78px;
 }
 
 .drag-column svg {
@@ -2067,6 +2067,94 @@ body.rule-pointer-dragging * {
   100% { transform: scale(1); }
 }
 
+.ocr-diagnostics {
+  border-bottom: 1px solid rgba(74, 119, 177, 0.38);
+  color: #c7d9ef;
+  background: rgba(13, 34, 58, 0.88);
+  user-select: text;
+}
+
+.ocr-diagnostics > summary,
+.ocr-diagnostics-all > summary {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  color: #dce9f8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.ocr-diagnostics > summary small,
+.ocr-diagnostics-all > summary {
+  color: #819bbd;
+  font-size: 10px;
+  font-weight: 620;
+}
+
+.ocr-diagnostics-body {
+  padding: 0 12px 10px;
+}
+
+.ocr-diagnostics-body > p {
+  margin: 0 0 8px;
+  color: #819bbd;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ocr-diagnostic-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #dce9f8;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.ocr-diagnostic-heading small,
+.ocr-diagnostic-list small {
+  color: #819bbd;
+  font-size: 10px;
+  font-weight: 560;
+}
+
+.ocr-diagnostic-list {
+  display: grid;
+  max-height: 136px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid rgba(74, 119, 177, 0.34);
+  border-radius: 6px;
+  list-style: none;
+}
+
+.ocr-diagnostic-list li {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.6fr) minmax(150px, 1fr) minmax(180px, 1.15fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 29px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(74, 119, 177, 0.2);
+  background: rgba(5, 19, 34, 0.42);
+  font-size: 11px;
+}
+
+.ocr-diagnostic-list li:last-child { border-bottom: 0; }
+.ocr-diagnostic-list li strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f0c58d; }
+.ocr-diagnostic-list li span { color: #c7d9ef; }
+.ocr-diagnostic-list.all { margin-top: 5px; }
+.ocr-diagnostics-all { margin-top: 8px; border: 1px solid rgba(74, 119, 177, 0.28); border-radius: 6px; }
+.ocr-diagnostics-all > summary { min-height: 30px; font-size: 11px; }
+.ocr-diagnostics-ok { color: #8fcfc2 !important; }
+
 .rule-candidate-editor {
   border: 1px solid rgba(74, 119, 177, 0.48);
   border-radius: 8px;
@@ -3110,4 +3198,148 @@ body.rule-pointer-dragging * {
 .rule-drag-overlay,
 .rule-drag-overlay :where(div, p, span, strong, b, em, i, time, small, code, pre) {
   font-size: var(--content-font-size);
+}
+
+/* 截图规则导入：预览使用独立滚动视口，滚轮缩放与中键二维平移由组件处理。 */
+.rule-import-preview.preview-viewport {
+  display: block;
+  overflow: scroll;
+  padding: 12px;
+  cursor: default;
+  overscroll-behavior: contain;
+}
+
+.rule-import-preview.preview-viewport:focus-visible {
+  outline: 2px solid #55a8ff;
+  outline-offset: -2px;
+}
+
+.rule-import-preview.preview-viewport .preview-content {
+  display: inline-block;
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+  transform-origin: top left;
+}
+
+.rule-import-preview.preview-viewport .demo-screenshot-preview {
+  min-width: max-content;
+}
+
+.detected-sheet {
+  font-size: 6px;
+}
+
+.detected-sheet th,
+.detected-sheet td {
+  min-width: 58px;
+  height: 25px;
+  padding: 3px 4px;
+}
+
+.detected-sheet thead th {
+  height: 17px;
+}
+
+.detected-sheet tbody th,
+.detected-sheet .sheet-corner {
+  min-width: 29px;
+  padding-right: 4px;
+}
+
+.detected-sheet td {
+  max-width: 95px;
+}
+
+.detected-sheet td span {
+  max-width: 85px;
+}
+
+.detected-sheet td small {
+  margin-top: 1px;
+  font-size: 5px;
+}
+
+.cell-text-editor-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 13, 25, 0.58);
+}
+
+.cell-text-editor {
+  width: min(440px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid rgba(85, 168, 255, 0.6);
+  border-radius: 12px;
+  background: #10253f;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.38);
+}
+
+.cell-text-editor h4,
+.cell-text-editor p { margin: 0; }
+.cell-text-editor p { color: #9db3d2; font-size: 13px; line-height: 1.55; }
+/* 混合数据源选择和规则多选：拖动手柄以外的行区域用于选择。 */
+.input-action.source-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.source-picker-trigger {
+  min-width: 158px;
+  white-space: nowrap;
+}
+
+.drag-column,
+.drag-cell {
+  width: 78px;
+  padding-inline: 8px;
+}
+
+.rule-row-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.drag-column svg {
+  margin: 0;
+}
+
+.drag-column input[type="checkbox"],
+.drag-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+  accent-color: #55a7ff;
+  appearance: auto;
+}
+
+.drag-handle {
+  width: 30px;
+  height: 32px;
+  padding: 0;
+}
+
+.rule-drag-row > td:not(.drag-cell) {
+  cursor: cell;
+}
+
+.rule-drag-row :is(input, select) {
+  cursor: text;
 }

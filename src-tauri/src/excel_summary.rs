@@ -219,9 +219,10 @@ fn source_files_for_request(
                 if paths_refer_to_same_file(&file_path, output_path) {
                     continue;
                 }
-                if !files
-                    .iter()
-                    .any(|existing| paths_refer_to_same_file(existing, &file_path))
+                if !request.deduplicate_sources
+                    || !files
+                        .iter()
+                        .any(|existing| paths_refer_to_same_file(existing, &file_path))
                 {
                     files.push(file_path);
                 }
@@ -525,10 +526,12 @@ mod tests {
         let request = SummaryRequest {
             target_folder: root.to_string_lossy().to_string(),
             target_paths: Vec::new(),
+            deduplicate_sources: true,
             output_file: output_path.to_string_lossy().to_string(),
             keyword: "报表".to_string(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
             rules: vec![Rule {
+                id: None,
                 output_column: "货币资金".to_string(),
                 sheet_mode: SHEET_MODE_EXACT.to_string(),
                 sheet_value: "资产负债表".to_string(),
@@ -579,10 +582,12 @@ mod tests {
         let request = SummaryRequest {
             target_folder: input_path.to_string_lossy().to_string(),
             target_paths: Vec::new(),
+            deduplicate_sources: true,
             output_file: input_path.to_string_lossy().to_string(),
             keyword: String::new(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
             rules: vec![Rule {
+                id: None,
                 output_column: "金额".to_string(),
                 sheet_mode: SHEET_MODE_EXACT.to_string(),
                 sheet_value: "Sheet1".to_string(),
@@ -637,10 +642,12 @@ mod tests {
                 first_path.to_string_lossy().to_string(),
                 root.join("资料").to_string_lossy().to_string(),
             ],
+            deduplicate_sources: true,
             output_file: root.join("汇总结果.xlsx").to_string_lossy().to_string(),
             keyword: "报表".to_string(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
             rules: vec![Rule {
+                id: None,
                 output_column: "金额".to_string(),
                 sheet_mode: SHEET_MODE_EXACT.to_string(),
                 sheet_value: "Sheet1".to_string(),
@@ -650,7 +657,19 @@ mod tests {
         };
 
         let files = source_files_for_request(&request, Path::new(&request.output_file)).unwrap();
-        assert_eq!(files, vec![first_path, second_path]);
+        assert_eq!(files, vec![first_path.clone(), second_path.clone()]);
+
+        let mut preserved_request = request.clone();
+        preserved_request.deduplicate_sources = false;
+        let preserved_files = source_files_for_request(
+            &preserved_request,
+            Path::new(&preserved_request.output_file),
+        )
+        .unwrap();
+        assert_eq!(
+            preserved_files,
+            vec![first_path, second_path.clone(), second_path]
+        );
 
         let _ = fs::remove_dir_all(&root);
     }
@@ -677,10 +696,12 @@ mod tests {
         let request = SummaryRequest {
             target_folder: root.to_string_lossy().to_string(),
             target_paths: Vec::new(),
+            deduplicate_sources: true,
             output_file: root.join("旧报表.xlsx").to_string_lossy().to_string(),
             keyword: "报表".to_string(),
             filter_mode: FILTER_MODE_INCLUDE.to_string(),
             rules: vec![Rule {
+                id: None,
                 output_column: "营业收入".to_string(),
                 sheet_mode: SHEET_MODE_CONTAINS.to_string(),
                 sheet_value: "利润".to_string(),

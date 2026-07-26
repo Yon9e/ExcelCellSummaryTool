@@ -184,8 +184,7 @@ pub fn save_settings(app: &AppHandle, settings: OcrSettings) -> Result<OcrSettin
 
     if another_app_instance_is_running() {
         return Err(
-            "检测到另一个 FADT 实例正在运行。请关闭其他实例后再保存 OCR 设置。"
-                .to_string(),
+            "检测到另一个 FADT 实例正在运行。请关闭其他实例后再保存 OCR 设置。".to_string(),
         );
     }
 
@@ -441,8 +440,9 @@ fn migrate_legacy_ocr_data_if_needed(
             if !legacy_file.is_file() {
                 continue;
             }
-            let contents = fs::read(&legacy_file)
-                .map_err(|error| format!("读取旧版 OCR 设置失败：{}：{error}", legacy_file.display()))?;
+            let contents = fs::read(&legacy_file).map_err(|error| {
+                format!("读取旧版 OCR 设置失败：{}：{error}", legacy_file.display())
+            })?;
             let target = destination_data.join(filename);
             write_bytes_atomically_if_missing(&target, &contents, "迁移旧版 OCR 设置")?;
         }
@@ -1387,15 +1387,17 @@ mod tests {
 
     #[test]
     fn migrates_only_legacy_ocr_settings_files() {
-        let root = std::env::temp_dir().join(format!(
-            "fadt-legacy-ocr-migration-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("fadt-legacy-ocr-migration-{}", std::process::id()));
         let legacy_runtime = root.join("ExcelCellSummaryTool").join(UMI_RUNTIME_DIR);
         let destination_runtime = root.join("FADT").join(UMI_RUNTIME_DIR);
         let legacy_data = legacy_runtime.join(UMI_DATA_DIR);
         fs::create_dir_all(legacy_data.join("logs")).unwrap();
-        fs::write(legacy_data.join(".settings"), "hotkey.screenshot=ctrl+alt+s\n").unwrap();
+        fs::write(
+            legacy_data.join(".settings"),
+            "hotkey.screenshot=ctrl+alt+s\n",
+        )
+        .unwrap();
         fs::write(legacy_data.join(".pre_settings"), "{\"last_pid\":0}\n").unwrap();
         fs::write(legacy_data.join("custom.ini"), "keep=true\n").unwrap();
         fs::write(legacy_data.join("logs").join("legacy.log"), "ignore").unwrap();
@@ -1419,10 +1421,8 @@ mod tests {
 
     #[test]
     fn preserves_existing_fadt_ocr_settings() {
-        let root = std::env::temp_dir().join(format!(
-            "fadt-existing-ocr-settings-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("fadt-existing-ocr-settings-{}", std::process::id()));
         let legacy_runtime = root.join("ExcelCellSummaryTool").join(UMI_RUNTIME_DIR);
         let destination_runtime = root.join("FADT").join(UMI_RUNTIME_DIR);
         let legacy_data = legacy_runtime.join(UMI_DATA_DIR);

@@ -25,6 +25,7 @@ export interface CandidatePairValue {
 export interface RowSelectionPairResult {
   pairs: CandidatePairValue[];
   missingOutputRowIndexes: number[];
+  duplicateOutputRowIndexes: number[];
   suffixColumnIndexes: number[];
   missingSuffixColumnIndexes: number[];
   duplicateSuffixes: string[];
@@ -83,6 +84,22 @@ export function selectCellRange(
       && columnIndex <= maxColumn
     ))).map(({ id }) => id),
   );
+}
+
+export function toggleCellRange(
+  cells: SelectableCell[],
+  selected: ReadonlySet<string>,
+  startId: string,
+  endId: string,
+): Set<string> {
+  const range = selectCellRange(cells, startId, endId);
+  const shouldInvert = [...range].some((cellId) => selected.has(cellId));
+  const next = new Set(selected);
+  for (const cellId of range) {
+    if (shouldInvert && next.has(cellId)) next.delete(cellId);
+    else next.add(cellId);
+  }
+  return next;
 }
 
 export function selectSingleColumnRange(
@@ -181,7 +198,12 @@ export function buildRowSelectionPairs(
 ): RowSelectionPairResult {
   const sortedOutputs = sortCells(outputCells);
   const sortedData = sortCells(dataCells);
-  const outputByRow = new Map(sortedOutputs.map((cell) => [cell.rowIndex, cell]));
+  const outputByRow = new Map<number, SelectableCell[]>();
+  for (const cell of sortedOutputs) {
+    const row = outputByRow.get(cell.rowIndex) ?? [];
+    row.push(cell);
+    outputByRow.set(cell.rowIndex, row);
+  }
   const dataByRow = new Map<number, SelectableCell[]>();
   for (const cell of sortedData) {
     const row = dataByRow.get(cell.rowIndex) ?? [];
@@ -190,7 +212,10 @@ export function buildRowSelectionPairs(
   }
 
   const missingOutputRowIndexes = [...dataByRow.keys()]
-    .filter((rowIndex) => !outputByRow.has(rowIndex))
+    .filter((rowIndex) => (outputByRow.get(rowIndex)?.length ?? 0) === 0)
+    .sort((left, right) => left - right);
+  const duplicateOutputRowIndexes = [...dataByRow.keys()]
+    .filter((rowIndex) => (outputByRow.get(rowIndex)?.length ?? 0) > 1)
     .sort((left, right) => left - right);
   const suffixColumnIndexes = [...new Set(
     [...dataByRow.values()]
@@ -210,12 +235,12 @@ export function buildRowSelectionPairs(
     .map(([suffix]) => suffix);
 
   const pairs = sortedData.flatMap((dataCell) => {
-    const outputCell = outputByRow.get(dataCell.rowIndex);
-    if (!outputCell) return [];
+    const outputCellsForRow = outputByRow.get(dataCell.rowIndex) ?? [];
+    if (outputCellsForRow.length !== 1) return [];
     const rowHasMultipleTargets = (dataByRow.get(dataCell.rowIndex)?.length ?? 0) > 1;
     const suffix = rowHasMultipleTargets ? columnSuffixes[dataCell.columnIndex]?.trim() ?? "" : "";
     return [{
-      outputColumn: `${outputCell.text.trim()}${suffix}`,
+      outputColumn: `${outputCellsForRow[0].text.trim()}${suffix}`,
       cell: dataCell.address.toUpperCase(),
     }];
   });
@@ -223,6 +248,7 @@ export function buildRowSelectionPairs(
   return {
     pairs,
     missingOutputRowIndexes,
+    duplicateOutputRowIndexes,
     suffixColumnIndexes,
     missingSuffixColumnIndexes,
     duplicateSuffixes,

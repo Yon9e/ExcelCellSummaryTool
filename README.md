@@ -4,6 +4,8 @@ Financial Audit Data Toolkit（FADT）是面向财务与审计人员的一体化
 
 GitHub 仓库为 [Yon9e/FADT](https://github.com/Yon9e/FADT)。FADT 首次启动时会迁移旧版方案与 OCR 设置，且不会删除旧版用户数据目录。
 
+开发者或编码代理接手前，请先阅读 [AGENTS.md](AGENTS.md)、[开发与接手指南](docs/DEVELOPMENT.md) 和 [领域词汇表](CONTEXT.md)。
+
 ## 主要功能
 
 - 同时读取多个目标文件夹和手工多选的 Excel 文件；文件夹递归扫描全部子文件夹，再按规则定位指定 Sheet 与单元格并输出汇总工作簿。
@@ -76,7 +78,7 @@ OCR 服务只监听 `127.0.0.1`，图片识别请求不会发送到外部服务�
 ## 源码运行
 
 ```powershell
-npm install
+npm ci
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\setup_umi_ocr.ps1
 npm run tauri:dev
 ```
@@ -86,11 +88,13 @@ npm run tauri:dev
 ## 本地验证
 
 ```powershell
+npm run typecheck
 npm test -- --run
 npm run build
-Set-Location .\src-tauri
-& "$env:USERPROFILE\.cargo\bin\cargo.exe" test
+& "$env:USERPROFILE\.cargo\bin\cargo.exe" test --manifest-path .\src-tauri\Cargo.toml --locked
 ```
+
+浏览器中的 `npm run dev` 只适合布局和纯前端逻辑检查；文件系统、Windows 快速访问、剪贴板、截图、OCR 和 Excel 汇总必须在 Tauri 桌面应用中复验。完整开发环境、架构和发布门禁见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
 ## 本地打包
 
