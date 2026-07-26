@@ -58,7 +58,11 @@ export function getSupportViewFromSearch(search: string): SupportView {
 }
 
 export function isWorkspaceKey(value: unknown): value is WorkspaceKey {
-  return value === "summary" || value === "ocr" || value === "text-cleaner" || value === "about";
+  return value === "summary"
+    || value === "ocr"
+    || value === "text-cleaner"
+    || value === "settings"
+    || value === "about";
 }
 
 export function getWorkspaceFromSearch(search: string): WorkspaceKey {

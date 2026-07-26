@@ -14,7 +14,13 @@ const query = ref("");
 const returnWorkspace = ref<WorkspaceKey>(getSupportReturnWorkspaceFromSearch(window.location.search));
 const manual = getHelpManual();
 let stopListening: (() => void) | undefined;
-const returnLabel = computed(() => ({ summary: "返回汇总", ocr: "返回截图识字", "text-cleaner": "返回文本清洗", about: "返回关于" })[returnWorkspace.value]);
+const returnLabel = computed(() => ({
+  summary: "返回汇总",
+  ocr: "返回截图识字",
+  "text-cleaner": "返回文本清洗",
+  settings: "返回设置",
+  about: "返回关于",
+})[returnWorkspace.value]);
 const filteredRegexSections = computed(() => {
   const normalized = query.value.trim().toLowerCase();
   if (!normalized) return regexManualSections;

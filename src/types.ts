@@ -1,6 +1,6 @@
 export type SheetMode = "exact" | "contains" | "index";
 export type FilterMode = "include" | "exclude";
-export type WorkspaceKey = "summary" | "ocr" | "text-cleaner" | "about";
+export type WorkspaceKey = "summary" | "ocr" | "text-cleaner" | "settings" | "about";
 export type SummaryTabKey = "scheme" | "source" | "rules" | "run";
 export type OcrTabKey = "capture" | "settings";
 

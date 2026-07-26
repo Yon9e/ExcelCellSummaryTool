@@ -6,6 +6,7 @@ import {
   ListChecks,
   Play,
   ScanText,
+  Settings,
   Settings2,
   SlidersHorizontal,
 } from "@lucide/vue";
@@ -22,6 +23,7 @@ export const workspacePages: NavigationItem<WorkspaceKey>[] = [
   { key: "summary", label: "汇总", icon: FileSpreadsheet },
   { key: "ocr", label: "截图识字", icon: ScanText },
   { key: "text-cleaner", label: "文本清洗", icon: ClipboardCheck },
+  { key: "settings", label: "设置", icon: Settings },
   { key: "about", label: "关于", icon: Info },
 ];
 

@@ -26,11 +26,13 @@ import AboutPage from "./AboutPage.vue";
 import OcrPage from "./OcrPage.vue";
 import OcrSettingsPage from "./OcrSettingsPage.vue";
 import RuleImageImporter from "./RuleImageImporter.vue";
+import SettingsPage from "./SettingsPage.vue";
 import SourcePickerModal from "./SourcePickerModal.vue";
 import TextCleanerPage from "./TextCleanerPage.vue";
 import { ocrTabs, summaryTabs, workspacePages } from "./navigation";
 import { isWorkspaceKey, getSupportViewFromSearch, getSupportWindowConfig, type SupportView } from "./supportWindows";
 import { useAppNavigationStore } from "./stores/appNavigation";
+import { useMotionStore } from "./stores/motion";
 
 const emptyRule: Rule = { output_column: "", sheet_mode: "exact", sheet_value: "", cell: "" };
 const sampleRules: Rule[] = [
@@ -67,7 +69,9 @@ interface RuleDragOverlayState {
 }
 
 const navigationStore = useAppNavigationStore();
+const motionStore = useMotionStore();
 const { activeWorkspace, activeSummaryTab, activeOcrTab } = storeToRefs(navigationStore);
+const { effectiveLevel: effectiveMotionLevel } = storeToRefs(motionStore);
 const schemes = ref<Scheme[]>([]);
 const selectedScheme = ref("");
 const loadedSchemeName = ref("");
@@ -107,7 +111,15 @@ const activeTitle = computed(() => activeWorkspace.value === "summary"
   : activeWorkspace.value === "ocr"
     ? ocrTabs.find((tab) => tab.key === activeOcrTab.value)?.label ?? ""
     : workspacePages.find((page) => page.key === activeWorkspace.value)?.label ?? "");
-const activeKicker = computed(() => activeWorkspace.value === "summary" ? "汇总功能" : activeWorkspace.value === "ocr" ? "OCR 工具" : activeWorkspace.value === "text-cleaner" ? "剪贴板工具" : "应用信息");
+const activeKicker = computed(() => activeWorkspace.value === "summary"
+  ? "汇总功能"
+  : activeWorkspace.value === "ocr"
+    ? "OCR 工具"
+    : activeWorkspace.value === "text-cleaner"
+      ? "剪贴板工具"
+      : activeWorkspace.value === "settings"
+        ? "偏好设置"
+        : "应用信息");
 const contentKey = computed(() => `${activeWorkspace.value}-${activeWorkspace.value === "summary" ? activeSummaryTab.value : activeWorkspace.value === "ocr" ? activeOcrTab.value : activeWorkspace.value}`);
 const percent = computed(() => total.value > 0 ? Math.round((processed.value / total.value) * 100) : 0);
 const selectedSchemeData = computed(() => schemes.value.find((scheme) => scheme.name === selectedScheme.value));
@@ -471,6 +483,7 @@ async function openSupportWindow(view: Exclude<SupportView, "main">, returnWorks
 }
 
 onMounted(async () => {
+  motionStore.initialize();
   if (supportView !== "main") return;
   if (browserPreview) { appendLog("INFO", browserPreviewMessage); return; }
   await refreshSchemes(); void initializeOcrAtStartup().catch((error) => appendLog("WARN", `Umi-OCR 自动加载失败：${String(error)}`));
@@ -491,6 +504,7 @@ onMounted(async () => {
   ]);
 });
 onBeforeUnmount(() => {
+  motionStore.dispose();
   unlisteners.forEach((unlisten) => unlisten());
   endRuleDrag();
   endRuleSelection();
@@ -500,7 +514,7 @@ onBeforeUnmount(() => {
 <template>
   <ElConfigProvider :locale="zhCn">
     <SupportWindowContent v-if="supportView !== 'main'" :view="supportView" />
-    <div v-else class="app-shell">
+    <div v-else class="app-shell" :data-motion="effectiveMotionLevel">
     <aside class="side-nav">
       <div class="brand"><div class="brand-mark"><FileSpreadsheet :size="26" /></div><div><h1>FADT</h1><p v-if="brandSubtitle">{{ brandSubtitle }}</p></div></div>
       <nav class="nav-list">
@@ -571,6 +585,7 @@ onBeforeUnmount(() => {
           <OcrPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'capture'" :on-log="appendLog" />
           <OcrSettingsPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'settings'" :on-log="appendLog" />
           <TextCleanerPage v-if="activeWorkspace === 'text-cleaner'" :on-log="appendLog" :on-open-regex-tutorial="() => openSupportWindow('regex', 'text-cleaner')" />
+          <SettingsPage v-if="activeWorkspace === 'settings'" />
           <AboutPage v-if="activeWorkspace === 'about'" />
         </div>
       </section>

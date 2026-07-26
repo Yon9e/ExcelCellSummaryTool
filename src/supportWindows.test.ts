@@ -38,7 +38,9 @@ describe("support windows", () => {
     expect(getMainViewPath("/?view=help&return=text-cleaner#step-2")).toBe("/?workspace=text-cleaner");
     expect(getSupportReturnWorkspaceFromSearch("?view=regex&return=text-cleaner")).toBe("text-cleaner");
     expect(getWorkspaceFromSearch("?workspace=text-cleaner")).toBe("text-cleaner");
+    expect(getWorkspaceFromSearch("?workspace=settings")).toBe("settings");
     expect(isWorkspaceKey("text-cleaner")).toBe(true);
+    expect(isWorkspaceKey("settings")).toBe(true);
     expect(isWorkspaceKey("unknown")).toBe(false);
   });
 });
