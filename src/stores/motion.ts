@@ -52,6 +52,12 @@ export const useMotionStore = defineStore("motion", () => {
   function setMode(value: MotionMode) {
     mode.value = value;
     persistMotionMode(value);
+    if (value === "auto") {
+      startPerformanceSampling();
+    } else if (samplingStatus.value === "sampling") {
+      stopPerformanceSampling();
+      samplingStatus.value = "idle";
+    }
   }
 
   function restoreDefaults() {
@@ -125,7 +131,7 @@ export const useMotionStore = defineStore("motion", () => {
       };
       mediaQuery.addEventListener?.("change", mediaQueryListener);
     }
-    startPerformanceSampling();
+    if (mode.value === "auto") startPerformanceSampling();
   }
 
   function dispose() {

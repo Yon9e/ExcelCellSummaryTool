@@ -7,5 +7,6 @@ import "./styles/v3-shell.css";
 import "./styles/v3-motion.css";
 import "./styles/v3-workspaces.css";
 import "./styles/v3-high-density.css";
+import "./styles/v3-responsive.css";
 
 createApp(App).use(createPinia()).mount("#root");

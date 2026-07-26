@@ -79,4 +79,29 @@ describe("motion store", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("samples frame performance only while automatic mode is active", () => {
+    vi.stubGlobal("localStorage", createStorage({
+      [MOTION_MODE_STORAGE_KEY]: "full",
+    }));
+    const requestFrame = vi.fn(() => 1);
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })));
+    const store = useMotionStore();
+
+    store.initialize();
+
+    expect(store.samplingStatus).toBe("idle");
+    expect(requestFrame).not.toHaveBeenCalled();
+
+    store.setMode("auto");
+    expect(store.samplingStatus).toBe("sampling");
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    store.dispose();
+    vi.unstubAllGlobals();
+  });
 });
