@@ -4,8 +4,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { ExternalLink, RefreshCw, Save, Settings2 } from "@lucide/vue";
 import { browserPreviewMessage, isTauriRuntime } from "./browserPreview";
 import type { LogEvent, OcrRuntimeStatus, OcrSettings } from "./types";
+import HighDensityShell from "./components/HighDensityShell.vue";
 
-const props = defineProps<{ onLog: (level: LogEvent["level"], message: string) => void }>();
+const props = defineProps<{
+  onLog: (level: LogEvent["level"], message: string) => void;
+  onBack?: () => void;
+}>();
 const browserPreview = !isTauriRuntime();
 const previewSettings: OcrSettings = {
   language: "简体中文", max_side_len: 1024, correct_text_direction: false, text_layout: "multi_none",
@@ -58,6 +62,15 @@ async function openNativeSettings() {
 </script>
 
 <template>
+  <div class="ocr-settings-workspace">
+  <HighDensityShell
+    eyebrow="截图识字"
+    title="Umi-OCR 设置"
+    description="管理本工具使用的识别、快捷键与结果处理行为。"
+    return-label="返回截图识字"
+    :context-items="['文字识别', '文本与快捷键', '识图后的操作']"
+    @back="props.onBack?.()"
+  >
   <div class="ocr-settings-page">
     <section class="ocr-settings-intro">
       <div><span class="ocr-kicker"><Settings2 :size="16" /> Umi-OCR</span><h4>截图识字设置</h4><p>此处管理本工具使用的截图、识别与复制行为；保存后会重新加载本工具启动的 OCR 服务。</p></div>
@@ -96,5 +109,7 @@ async function openNativeSettings() {
         </div>
       </section>
     </div>
+  </div>
+  </HighDensityShell>
   </div>
 </template>

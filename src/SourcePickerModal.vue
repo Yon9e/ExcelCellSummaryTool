@@ -31,6 +31,7 @@ import {
   sourcePathKey,
   sourcePathsEqual,
 } from "./sourcePaths";
+import HighDensityShell from "./components/HighDensityShell.vue";
 
 const props = defineProps<{
   initialPaths: string[];
@@ -437,7 +438,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="unified-picker-backdrop" role="presentation" @click.self="onClose">
+  <div class="unified-picker-backdrop" role="presentation">
+    <HighDensityShell
+      eyebrow="数据源"
+      title="选择文件和文件夹"
+      description="同一页面混合多选；文件夹将递归扫描全部子文件夹。"
+      return-label="返回数据源配置"
+      :context-items="['浏览与选择', '已选数据源', '确认选择']"
+      @back="onClose"
+    >
     <section class="unified-picker" role="dialog" aria-modal="true" aria-labelledby="unified-picker-title">
       <header class="unified-picker-heading">
         <div>
@@ -506,6 +515,7 @@ onBeforeUnmount(() => {
         <div><button class="soft-button" type="button" @click="onClose">取消</button><button class="primary-button" type="button" :disabled="!selectedPaths.length" @click="onConfirm(selectedPaths)">确定选择</button></div>
       </footer>
     </section>
+    </HighDensityShell>
   </div>
 </template>
 

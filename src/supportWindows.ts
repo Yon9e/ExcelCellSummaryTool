@@ -31,7 +31,7 @@ export function getSupportWindowConfig(
       minimizable: true,
       resizable: true,
       center: true,
-      backgroundColor: "#0e1b2d",
+      backgroundColor: "#242031",
     },
     regex: {
       label: "regex-manual",
@@ -43,7 +43,7 @@ export function getSupportWindowConfig(
       minimizable: true,
       resizable: true,
       center: true,
-      backgroundColor: "#0e1b2d",
+      backgroundColor: "#242031",
     },
   };
   return configs[view];

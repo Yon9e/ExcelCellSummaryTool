@@ -6,5 +6,6 @@ import "./styles/v3-tokens.css";
 import "./styles/v3-shell.css";
 import "./styles/v3-motion.css";
 import "./styles/v3-workspaces.css";
+import "./styles/v3-high-density.css";
 
 createApp(App).use(createPinia()).mount("#root");

@@ -24,6 +24,7 @@ import SupportWindowContent from "./SupportWindowContent.vue";
 import AboutPage from "./AboutPage.vue";
 import AppSidebar from "./components/AppSidebar.vue";
 import AppTopbar from "./components/AppTopbar.vue";
+import HighDensityShell from "./components/HighDensityShell.vue";
 import PageIntro from "./components/PageIntro.vue";
 import WorkspaceTabs from "./components/WorkspaceTabs.vue";
 import OcrPage from "./OcrPage.vue";
@@ -609,7 +610,7 @@ onBeforeUnmount(() => {
           </Teleport>
           <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'run'" class="run-layout" data-page="summary-run"><div class="run-actions audit-table-toolbar"><button class="primary-button" :disabled="running" @click="runSummary"><Rocket :size="20" />{{ running ? '正在汇总' : '开始汇总' }}</button><button class="soft-button" @click="logs = []">清空日志</button><div class="run-meta">当前处理文件：{{ currentFile }}</div><div class="run-estimate" aria-live="polite">{{ taskEstimateText }}</div><div class="run-count">已处理 {{ processed }} / {{ total }}</div></div><div class="progress-bar"><div :style="{ width: `${percent}%` }" /><span>{{ percent }}%</span></div><pre class="log-console audit-log-console">{{ logs.length ? logs.join('\n') : '等待任务开始。执行信息、警告和输出路径会显示在这里。' }}</pre></div>
           <OcrPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'capture'" :on-log="appendLog" />
-          <OcrSettingsPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'settings'" :on-log="appendLog" />
+          <OcrSettingsPage v-if="activeWorkspace === 'ocr' && activeOcrTab === 'settings'" :on-log="appendLog" :on-back="() => { activeOcrTab = 'capture'; }" />
           <TextCleanerPage v-if="activeWorkspace === 'text-cleaner'" :on-log="appendLog" :on-open-regex-tutorial="() => openSupportWindow('regex', 'text-cleaner')" />
           <SettingsPage v-if="activeWorkspace === 'settings'" />
           <AboutPage v-if="activeWorkspace === 'about'" />
@@ -617,9 +618,13 @@ onBeforeUnmount(() => {
       </section>
       </div>
     </main>
-    <div v-if="sheetConflicts.length > 0 && pendingRequest" class="modal-backdrop" role="presentation"><div class="sheet-modal" role="dialog" aria-modal="true"><div class="sheet-modal-heading"><div><p class="eyebrow">Sheet 匹配冲突</p><h3>请选择实际要读取的 Sheet</h3></div><span>{{ sheetConflicts.length }} 项</span></div><div class="sheet-conflict-list">
+    <div v-if="sheetConflicts.length > 0 && pendingRequest" class="modal-backdrop sheet-conflict-workspace" role="presentation">
+      <HighDensityShell eyebrow="执行与日志" title="Sheet 匹配冲突" description="部分关键词命中多个 Sheet，请逐项确认实际读取目标。" return-label="返回执行与日志" :context-items="['检查冲突', '确认 Sheet', '继续汇总']" @back="cancelSheetChoice">
+      <div class="sheet-modal" role="dialog" aria-modal="true"><div class="sheet-modal-heading"><div><p class="eyebrow">Sheet 匹配冲突</p><h3>请选择实际要读取的 Sheet</h3></div><span>{{ sheetConflicts.length }} 项</span></div><div class="sheet-conflict-list">
       <label v-for="conflict in sheetConflicts" :key="getSheetConflictKey(conflict)" class="sheet-conflict-item"><span>{{ conflict.file_name }} / {{ conflict.output_column }} / 关键词：{{ conflict.sheet_value }}</span><select v-model="selectedSheets[getSheetConflictKey(conflict)]"><option v-for="sheetName in conflict.matched_sheets" :key="sheetName" :value="sheetName">{{ sheetName }}</option></select></label>
-    </div><div class="modal-actions"><button class="soft-button" @click="cancelSheetChoice">取消</button><button class="primary-button" @click="continueWithSheetChoices">使用选择继续汇总</button></div></div></div>
+      </div><div class="modal-actions"><button class="soft-button" @click="cancelSheetChoice">取消</button><button class="primary-button" @click="continueWithSheetChoices">使用选择继续汇总</button></div></div>
+      </HighDensityShell>
+    </div>
     <SourcePickerModal v-if="showSourcePicker" :initial-paths="sourcePickerInitialPaths" :on-close="() => { showSourcePicker = false; }" :on-confirm="confirmSourcePicker" />
     <RuleImageImporter v-if="showRuleImageImporter" :on-close="() => { showRuleImageImporter = false; }" :on-append="appendImportedRules" />
     </div>

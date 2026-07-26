@@ -16,7 +16,7 @@ describe("support windows", () => {
     expect(config.url).toContain("view=help");
     expect(config.minimizable).toBe(true);
     expect(config.resizable).toBe(true);
-    expect(config.backgroundColor).toBe("#0e1b2d");
+    expect(config.backgroundColor).toBe("#242031");
   });
 
   it("does not route about to a support window", () => {
@@ -30,6 +30,7 @@ describe("support windows", () => {
     expect(config.url).toContain("view=regex");
     expect(config.url).toContain("return=text-cleaner");
     expect(config.minimizable).toBe(true);
+    expect(config.backgroundColor).toBe("#242031");
     expect(getSupportViewFromSearch("?view=regex")).toBe("regex");
   });
 

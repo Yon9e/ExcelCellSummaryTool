@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { ArrowLeft, Search } from "@lucide/vue";
+import { Search } from "@lucide/vue";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauriRuntime } from "./browserPreview";
@@ -8,6 +8,7 @@ import { getHelpManual } from "./helpManual";
 import { regexManualSections } from "./regexManual";
 import { getMainViewPath, getSupportReturnWorkspaceFromSearch, isWorkspaceKey, type SupportView } from "./supportWindows";
 import type { WorkspaceKey } from "./types";
+import HighDensityShell from "./components/HighDensityShell.vue";
 
 const props = defineProps<{ view: Exclude<SupportView, "main"> }>();
 const query = ref("");
@@ -21,6 +22,14 @@ const returnLabel = computed(() => ({
   settings: "返回设置",
   about: "返回关于",
 })[returnWorkspace.value]);
+const shellTitle = computed(() => props.view === "regex" ? "财务工作常用正则表达式" : manual.title);
+const shellEyebrow = computed(() => props.view === "regex" ? "剪贴板文本清洗" : "使用手册");
+const shellDescription = computed(() => props.view === "regex"
+  ? "按任务查找可直接使用的 JavaScript 正则清洗方案。"
+  : "按工作区查阅 FADT 的本机数据处理流程。");
+const shellContextItems = computed(() => props.view === "regex"
+  ? ["清洗任务", "查找表达式", "替换示例"]
+  : ["快速开始", "汇总工作流", "OCR 与文本清洗"]);
 const filteredRegexSections = computed(() => {
   const normalized = query.value.trim().toLowerCase();
   if (!normalized) return regexManualSections;
@@ -50,14 +59,20 @@ async function returnToMain() {
 </script>
 
 <template>
-  <main v-if="props.view === 'regex'" class="support-window-shell regex-manual-shell">
-    <header class="support-window-heading regex-heading">
-      <div><p class="eyebrow">剪贴板文本清洗</p><h1>财务工作常用正则表达式</h1><p>按任务查找可直接使用的查找与替换方案。本工具使用 JavaScript 正则语法。</p></div>
-      <div class="regex-heading-actions">
+  <HighDensityShell
+    :eyebrow="shellEyebrow"
+    :title="shellTitle"
+    :description="shellDescription"
+    :return-label="returnLabel"
+    :context-items="shellContextItems"
+    @back="returnToMain"
+  >
+    <template v-if="props.view === 'regex'" #header-actions>
+      <div class="regex-heading-actions high-density-regex-actions">
         <label class="regex-search"><Search :size="18" /><input v-model="query" placeholder="搜索日期、金额、公司名、OCR……" /></label>
-        <button class="support-return-button" type="button" @click="returnToMain"><ArrowLeft :size="18" />{{ returnLabel }}</button>
       </div>
-    </header>
+    </template>
+  <main v-if="props.view === 'regex'" class="support-window-shell regex-manual-shell">
     <div class="regex-manual-layout">
       <nav class="regex-index" aria-label="正则教程目录"><strong>常用清洗任务</strong><span>按需要处理的问题查找</span><a v-for="section in regexManualSections" :key="section.id" :href="`#${section.id}`">{{ section.title }}</a></nav>
       <div class="regex-sections">
@@ -74,9 +89,9 @@ async function returnToMain() {
     </div>
   </main>
   <main v-else class="support-window-shell">
-    <header class="support-window-heading support-window-heading-with-return"><div><p class="eyebrow">Excel 单元格定向汇总工具</p><h1>{{ manual.title }}</h1></div><button class="support-return-button" type="button" @click="returnToMain"><ArrowLeft :size="18" />{{ returnLabel }}</button></header>
     <div class="help-manual-body support-manual-body">
       <section v-for="(section, sectionIndex) in manual.sections" :key="section.title" class="help-section"><div class="help-section-index">{{ sectionIndex + 1 }}</div><div><h4>{{ section.title }}</h4><ol><li v-for="item in section.items" :key="item">{{ item }}</li></ol></div></section>
     </div>
   </main>
+  </HighDensityShell>
 </template>

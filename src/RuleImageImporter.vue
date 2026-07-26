@@ -9,6 +9,7 @@ import { appendScreenshotItems, removeScreenshotItem, updateScreenshotItem, type
 import { analyzeSpreadsheetImage, createBrowserDemoScreenshots, resolveDetectedColumnLabel, type AnalysisResult } from "./spreadsheetImageAnalysis";
 import type { DetectedSpreadsheetCell } from "./spreadsheetScreenshot";
 import type { ImagePayload, OcrImageResult, Rule, SheetMode } from "./types";
+import HighDensityShell from "./components/HighDensityShell.vue";
 
 const props = defineProps<{ onClose: () => void; onAppend: (rules: Rule[]) => void }>();
 type SelectionTarget = "output" | "data";
@@ -295,6 +296,14 @@ function confirmImport() {
 
 <template>
   <div :class="`modal-backdrop rule-import-backdrop${isClosing ? ' is-closing' : ''}`" role="presentation" @animationend="finishCloseAnimation">
+    <HighDensityShell
+      eyebrow="图片定位规则"
+      title="从 Excel 截图选择单元格"
+      description="滚轮缩放截图，中键二维平移；在识别表格中选择输出列名和目标数据。"
+      return-label="返回规则配置"
+      :context-items="['截图与识别', '单元格选择', '候选规则']"
+      @back="requestClose"
+    >
     <div class="rule-import-modal" role="dialog" aria-modal="true" aria-labelledby="rule-import-title">
       <header class="rule-import-heading"><div><p class="eyebrow">图片定位规则</p><h3 id="rule-import-title">从 Excel 截图选择单元格</h3><p>识别全部可见单元格，再点击或拖动选择输出列名和目标数据。</p></div><button class="icon-button" title="关闭" @click="requestClose"><X :size="20" /></button></header>
       <div class="rule-import-command-bar">
@@ -353,5 +362,6 @@ function confirmImport() {
         </form>
       </div>      <footer class="modal-actions"><button class="soft-button" @click="requestClose">取消</button><button class="primary-button" :disabled="busy" @click="confirmImport">追加到规则配置</button></footer>
     </div>
+    </HighDensityShell>
   </div>
 </template>
