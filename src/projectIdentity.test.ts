@@ -19,8 +19,9 @@ const readme = readFileSync(new URL("../README.md", import.meta.url), "utf-8");
 describe("FADT 项目身份与旧版数据兼容", () => {
   it("将对外项目、包和仓库统一命名为 FADT", () => {
     expect(packageJson.name).toBe("fadt");
-    expect(packageJson.version).toBe("0.2.7");
+    expect(tauriConfig.version).toBe(packageJson.version);
     expect(cargoToml).toContain('name = "fadt"');
+    expect(cargoToml).toContain(`version = "${packageJson.version}"`);
     expect(cargoToml).toContain('repository = "https://github.com/Yon9e/FADT"');
     expect(tauriConfig.productName).toBe("FADT");
   });

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error Vitest 在 Node 环境运行，项目生产构建不需要引入 Node 类型。
 import { readFileSync } from "fs";
 
+const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
 const buildScript = readFileSync(new URL("../build.bat", import.meta.url), "utf-8");
 const installerScript = readFileSync(new URL("../scripts/build_installer.bat", import.meta.url), "utf-8");
+const portableScript = readFileSync(new URL("../scripts/build_portable.bat", import.meta.url), "utf-8");
+const releaseScript = readFileSync(new URL("../scripts/make_release.ps1", import.meta.url), "utf-8");
 const auditScript = readFileSync(new URL("../scripts/audit_release.ps1", import.meta.url), "utf-8");
 const tauriConfig = readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf-8");
 
@@ -14,7 +17,12 @@ describe("发布脚本隐私检查", () => {
     expect(buildScript).toContain("--remap-path-prefix=%USERPROFILE%=~");
     expect(buildScript).toContain("scripts\\audit_release.ps1");
     expect(buildScript).toContain("scripts\\setup_umi_ocr.ps1");
-    expect(buildScript).toContain("-Version 0.2.7");
+    for (const script of [buildScript, installerScript, portableScript]) {
+      expect(script).toContain(`-Version ${packageJson.version}`);
+    }
+    for (const script of [releaseScript, auditScript]) {
+      expect(script).toContain(`[string]$Version = "${packageJson.version}"`);
+    }
     expect(auditScript).toContain("core.quotepath=false");
     expect(buildScript).not.toMatch(/[A-Z]:\\(?:Users|DevHub)\\/i);
   });
