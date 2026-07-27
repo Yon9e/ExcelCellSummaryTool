@@ -15,6 +15,7 @@ import { getRuleRowKey } from "./ruleKeys";
 import { findRuleDragTarget, getRuleDragOriginStyle, getRuleDragOverlayLeft, getRuleDragOverlayTop, getRuleDragShift } from "./ruleDragPreview";
 import { reorderRules } from "./ruleOrdering";
 import { createEmptyRule, deleteSelectedRules, duplicateSelectedRules, ensureRuleIds, toggleRuleRange, toggleRuleSelection } from "./ruleSelection";
+import { normalizeSchemeRules } from "./schemeRules";
 import { getSchemePage } from "./schemePaging";
 import { getSummaryCompletionPrompt } from "./summaryPrompt";
 import { mergeUniqueSourcePaths } from "./sourcePaths";
@@ -38,7 +39,6 @@ import { isWorkspaceKey, getSupportViewFromSearch, getSupportWindowConfig, type 
 import { useAppNavigationStore } from "./stores/appNavigation";
 import { useMotionStore } from "./stores/motion";
 
-const emptyRule: Rule = { output_column: "", sheet_mode: "exact", sheet_value: "", cell: "" };
 const exampleRules: Rule[] = [
   { output_column: "货币资金", sheet_mode: "exact", sheet_value: "资产负债表", cell: "B7" },
   { output_column: "营业收入", sheet_mode: "contains", sheet_value: "利润", cell: "C12" },
@@ -134,6 +134,14 @@ const activeDescription = computed(() => activeWorkspace.value === "summary"
         : "查看版本、产品定位和本机数据说明。");
 const breadcrumb = computed(() => `FADT / ${workspacePages.find((page) => page.key === activeWorkspace.value)?.label ?? ""} / ${activeTitle.value}`);
 const contentKey = computed(() => `${activeWorkspace.value}-${activeWorkspace.value === "summary" ? activeSummaryTab.value : activeWorkspace.value === "ocr" ? activeOcrTab.value : activeWorkspace.value}`);
+const workspacePanelId = computed(() => activeWorkspace.value === "summary"
+  ? "summary-workspace-panel"
+  : activeWorkspace.value === "ocr"
+    ? "ocr-workspace-panel"
+    : undefined);
+const activeWorkspaceTabId = computed(() => workspacePanelId.value
+  ? `${workspacePanelId.value}-tab-${activeWorkspace.value === "summary" ? activeSummaryTab.value : activeOcrTab.value}`
+  : undefined);
 const percent = computed(() => total.value > 0 ? Math.round((processed.value / total.value) * 100) : 0);
 const selectedSchemeData = computed(() => schemes.value.find((scheme) => scheme.name === selectedScheme.value));
 const loadedSchemeData = computed(() => schemes.value.find((scheme) => scheme.name === loadedSchemeName.value));
@@ -157,6 +165,9 @@ const taskEstimateText = computed(() => {
 });
 
 watch(() => schemePageData.value.currentPage, (page) => { schemePage.value = page; });
+watch(contentKey, () => {
+  if (supportView === "main") motionStore.resamplePerformance();
+});
 
 function getSheetConflictKey(conflict: SheetConflict) { return `${conflict.file_path}::${conflict.rule_index}`; }
 function selectSummaryTab(key: string) {
@@ -196,7 +207,7 @@ async function confirmAction(text: string, title: string) {
 }
 function createNewScheme() {
   selectedScheme.value = ""; loadedSchemeName.value = ""; schemeName.value = ""; targetPath.value = ""; targetPaths.value = []; deduplicateSources.value = true; outputFile.value = "";
-  keyword.value = ""; filterMode.value = "include"; const rule = createEmptyRule(); rules.value = [rule]; selectedRuleIds.value = new Set(rule.id ? [rule.id] : []);
+  keyword.value = ""; filterMode.value = "include"; rules.value = []; selectedRuleIds.value = new Set();
   appendLog("INFO", "已新建空白方案，请输入名称并完成配置。");
   void nextTick(() => schemeNameInput.value?.focus());
 }
@@ -227,7 +238,7 @@ async function saveCurrentScheme() {
 function applyScheme(scheme: Scheme) {
   selectedScheme.value = scheme.name; loadedSchemeName.value = scheme.name; schemeName.value = scheme.name; targetPath.value = scheme.target_folder; targetPaths.value = [...(scheme.target_paths ?? [])]; deduplicateSources.value = scheme.deduplicate_sources !== false;
   outputFile.value = scheme.output_file; keyword.value = scheme.keyword; filterMode.value = scheme.filter_mode;
-  rules.value = ensureRuleIds((scheme.rules.length ? scheme.rules : [emptyRule]).map((rule) => ({ ...rule })));
+  rules.value = normalizeSchemeRules(scheme.rules);
   selectedRuleIds.value = new Set();
   appendLog("INFO", `已载入方案：${scheme.name}`);
 }
@@ -549,9 +560,16 @@ onBeforeUnmount(() => {
           </div>
           </template>
         </PageIntro>
-        <WorkspaceTabs v-if="activeWorkspace === 'summary'" :tabs="summaryTabs" :active-key="activeSummaryTab" label="汇总功能标签" @select="selectSummaryTab" />
-        <WorkspaceTabs v-if="activeWorkspace === 'ocr'" :tabs="ocrTabs" :active-key="activeOcrTab" label="截图识字标签" @select="selectOcrTab" />
-        <div class="feature-content" :key="contentKey">
+        <WorkspaceTabs v-if="activeWorkspace === 'summary'" :tabs="summaryTabs" :active-key="activeSummaryTab" panel-id="summary-workspace-panel" label="汇总功能标签" @select="selectSummaryTab" />
+        <WorkspaceTabs v-if="activeWorkspace === 'ocr'" :tabs="ocrTabs" :active-key="activeOcrTab" panel-id="ocr-workspace-panel" label="截图识字标签" @select="selectOcrTab" />
+        <div
+          :id="workspacePanelId"
+          :key="contentKey"
+          class="feature-content"
+          :role="workspacePanelId ? 'tabpanel' : undefined"
+          :aria-labelledby="activeWorkspaceTabId"
+          tabindex="0"
+        >
           <div v-if="activeWorkspace === 'summary' && activeSummaryTab === 'scheme'" class="scheme-page" data-page="summary-scheme">
             <div class="scheme-editor"><div class="scheme-current"><label><span>当前方案</span><input ref="schemeNameInput" v-model="schemeName" placeholder="输入新方案名称，或从下方载入已有方案" /></label><small>{{ loadedSchemeData ? `最近保存：${formatSchemeSavedAt(loadedSchemeData.updated_at)}` : '新方案尚未保存' }}</small></div><div class="button-row scheme-actions">
               <button class="soft-button" @click="createNewScheme"><Plus :size="18" />新建方案</button>

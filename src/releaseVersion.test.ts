@@ -32,6 +32,11 @@ const development = readFileSync(
   new URL("../docs/DEVELOPMENT.md", import.meta.url),
   "utf-8",
 );
+const appVersion = readFileSync(new URL("./appVersion.ts", import.meta.url), "utf-8");
+const appSidebar = readFileSync(
+  new URL("./components/AppSidebar.vue", import.meta.url),
+  "utf-8",
+);
 
 describe("FADT v0.3.0 release version", () => {
   it("keeps package, Tauri, Cargo and lockfiles on 0.3.0", () => {
@@ -58,5 +63,8 @@ describe("FADT v0.3.0 release version", () => {
     expect(readme).toContain("FADT-v0.3.0-win64-portable.zip");
     expect(readme).toContain("界面动效");
     expect(development).toContain("当前发布版本为 `0.3.0`");
+    expect(appVersion).toContain('import packageJson from "../package.json"');
+    expect(appSidebar).toContain("APP_VERSION");
+    expect(appSidebar).not.toContain("<small>v0.3.0</small>");
   });
 });

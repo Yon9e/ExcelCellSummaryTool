@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { storeToRefs } from "pinia";
 import { Search } from "@lucide/vue";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -9,8 +10,11 @@ import { regexManualSections } from "./regexManual";
 import { getMainViewPath, getSupportReturnWorkspaceFromSearch, isWorkspaceKey, type SupportView } from "./supportWindows";
 import type { WorkspaceKey } from "./types";
 import HighDensityShell from "./components/HighDensityShell.vue";
+import { useMotionStore } from "./stores/motion";
 
 const props = defineProps<{ view: Exclude<SupportView, "main"> }>();
+const motionStore = useMotionStore();
+const { effectiveLevel: effectiveMotionLevel } = storeToRefs(motionStore);
 const query = ref("");
 const returnWorkspace = ref<WorkspaceKey>(getSupportReturnWorkspaceFromSearch(window.location.search));
 const manual = getHelpManual();
@@ -65,6 +69,7 @@ async function returnToMain() {
     :description="shellDescription"
     :return-label="returnLabel"
     :context-items="shellContextItems"
+    :motion-level="effectiveMotionLevel"
     @back="returnToMain"
   >
     <template v-if="props.view === 'regex'" #header-actions>

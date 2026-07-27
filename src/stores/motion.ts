@@ -53,7 +53,7 @@ export const useMotionStore = defineStore("motion", () => {
     mode.value = value;
     persistMotionMode(value);
     if (value === "auto") {
-      startPerformanceSampling();
+      resamplePerformance();
     } else if (samplingStatus.value === "sampling") {
       stopPerformanceSampling();
       samplingStatus.value = "idle";
@@ -122,6 +122,13 @@ export const useMotionStore = defineStore("motion", () => {
     animationFrameId = requestAnimationFrame(captureFrame);
   }
 
+  function resamplePerformance(frameCount = 120) {
+    if (mode.value !== "auto" || sessionDegraded.value) return;
+    stopPerformanceSampling();
+    samplingStatus.value = "idle";
+    startPerformanceSampling(frameCount);
+  }
+
   function initialize() {
     if (typeof matchMedia !== "undefined") {
       mediaQuery = matchMedia("(prefers-reduced-motion: reduce)");
@@ -155,6 +162,7 @@ export const useMotionStore = defineStore("motion", () => {
     restoreDefaults,
     applyPerformanceSample,
     startPerformanceSampling,
+    resamplePerformance,
     initialize,
     dispose,
   };

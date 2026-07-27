@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { FileSpreadsheet } from "@lucide/vue";
+import { APP_VERSION } from "../appVersion";
 import { getBrandSubtitle } from "../brandContent";
 import { workspacePages } from "../navigation";
 import type { WorkspaceKey } from "../types";
@@ -42,7 +43,7 @@ const brandSubtitle = getBrandSubtitle();
     <div class="app-sidebar-footer">
       <span class="app-sidebar-status" aria-hidden="true" />
       <span>本地运行</span>
-      <small>v0.3.0</small>
+      <small>v{{ APP_VERSION }}</small>
     </div>
   </aside>
 </template>

@@ -30,4 +30,10 @@ describe("FADT v3 responsive and accessibility gates", () => {
     expect(motion).toContain("@media (prefers-reduced-motion: reduce)");
     expect(motion).toContain("animation-duration: 1ms");
   });
+
+  it("keeps compact high-density step labels from overflowing at 900px", () => {
+    expect(responsive).toContain(".high-density-context-step-label");
+    expect(responsive).toContain("display: none");
+    expect(responsive).toContain(".high-density-context-step-index");
+  });
 });

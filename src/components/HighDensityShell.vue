@@ -14,6 +14,7 @@ withDefaults(defineProps<{
   description?: string;
   returnLabel?: string;
   contextItems?: string[];
+  motionLevel?: "full" | "reduced";
 }>(), {
   description: "",
   returnLabel: "返回",
@@ -31,20 +32,17 @@ const railItems = [
 </script>
 
 <template>
-  <section class="high-density-shell fadt-v3">
-    <aside class="high-density-rail" aria-label="工作区图标导航">
+  <section class="high-density-shell fadt-v3" :data-motion-level="motionLevel">
+    <aside class="high-density-rail" aria-hidden="true">
       <span class="high-density-rail-brand">F</span>
-      <button
+      <span
         v-for="(item, index) in railItems"
         :key="item.label"
-        type="button"
+        class="high-density-rail-item"
         :class="{ active: index === 1 }"
-        :title="item.label"
-        :aria-label="item.label"
-        tabindex="-1"
       >
         <component :is="item.icon" :size="19" />
-      </button>
+      </span>
     </aside>
 
     <aside class="high-density-context" aria-label="当前工作区上下文">
@@ -60,8 +58,12 @@ const railItems = [
         <span
           v-for="(item, index) in contextItems"
           :key="item"
+          class="high-density-context-step"
           :class="{ active: index === 0 }"
-        >{{ item }}</span>
+        >
+          <b class="high-density-context-step-index" aria-hidden="true">{{ index + 1 }}</b>
+          <span class="high-density-context-step-label">{{ item }}</span>
+        </span>
       </nav>
       <div class="high-density-context-note">
         <i aria-hidden="true" />

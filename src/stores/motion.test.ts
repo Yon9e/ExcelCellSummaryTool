@@ -104,4 +104,22 @@ describe("motion store", () => {
     store.dispose();
     vi.unstubAllGlobals();
   });
+
+  it("starts a fresh automatic sample after a main page transition", () => {
+    vi.stubGlobal("localStorage", createStorage());
+    const requestFrame = vi.fn(() => 2);
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    const store = useMotionStore();
+    store.applyPerformanceSample({
+      frameIntervals: [16, 16, 16, 16],
+      longTaskCount: 0,
+    });
+
+    store.resamplePerformance();
+
+    expect(store.samplingStatus).toBe("sampling");
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    store.dispose();
+    vi.unstubAllGlobals();
+  });
 });

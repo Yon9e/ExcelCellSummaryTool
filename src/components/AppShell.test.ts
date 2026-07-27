@@ -36,12 +36,19 @@ describe("FADT v3 application shell", () => {
         tabs: summaryTabs,
         activeKey: "source",
         label: "汇总功能标签",
+        panelId: "summary-panel",
       },
     });
 
     expect(wrapper.get('[role="tablist"]').attributes("aria-label")).toBe("汇总功能标签");
     expect(wrapper.get('[data-tab="source"]').attributes("aria-selected")).toBe("true");
+    expect(wrapper.get('[data-tab="source"]').attributes("tabindex")).toBe("0");
+    expect(wrapper.get('[data-tab="source"]').attributes("aria-controls")).toBe("summary-panel");
+    expect(wrapper.get('[data-tab="scheme"]').attributes("tabindex")).toBe("-1");
     await wrapper.get('[data-tab="rules"]').trigger("click");
     expect(wrapper.emitted("select")?.[0]).toEqual(["rules"]);
+
+    await wrapper.get('[data-tab="source"]').trigger("keydown", { key: "ArrowRight" });
+    expect(wrapper.emitted("select")?.[1]).toEqual(["rules"]);
   });
 });

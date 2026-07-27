@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { Activity, Gauge, RotateCcw, Sparkles, Zap } from "@lucide/vue";
 import type { MotionMode } from "./motionPreferences";
@@ -45,6 +45,27 @@ const samplingLabel = computed(() => {
   if (samplingStatus.value === "complete") return sessionDegraded.value ? "已自动降级" : "采样完成";
   return "等待采样";
 });
+
+function selectOptionByKeyboard(event: KeyboardEvent, index: number) {
+  const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+  if (!keys.includes(event.key)) return;
+  event.preventDefault();
+  const lastIndex = options.length - 1;
+  const nextIndex = event.key === "Home"
+    ? 0
+    : event.key === "End"
+      ? lastIndex
+      : event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? (index + 1) % options.length
+        : (index - 1 + options.length) % options.length;
+  motionStore.setMode(options[nextIndex].mode);
+  void nextTick(() => {
+    const buttons = (event.currentTarget as HTMLElement | null)
+      ?.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    buttons?.[nextIndex]?.focus();
+  });
+}
 </script>
 
 <template>
@@ -66,16 +87,19 @@ const samplingLabel = computed(() => {
       </button>
     </div>
 
-    <div class="motion-option-grid" role="group" aria-label="界面动效模式">
+    <div class="motion-option-grid" role="radiogroup" aria-label="界面动效模式">
       <button
-        v-for="option in options"
+        v-for="(option, index) in options"
         :key="option.mode"
         class="motion-option"
         :class="{ active: mode === option.mode }"
         type="button"
+        role="radio"
         :data-motion-mode="option.mode"
-        :aria-pressed="mode === option.mode"
+        :aria-checked="mode === option.mode"
+        :tabindex="mode === option.mode ? 0 : -1"
         @click="motionStore.setMode(option.mode)"
+        @keydown="selectOptionByKeyboard($event, index)"
       >
         <span class="motion-option-icon" aria-hidden="true">
           <component :is="option.icon" :size="20" />
