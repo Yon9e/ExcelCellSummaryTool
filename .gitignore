@@ -21,6 +21,7 @@ pysidedeploy.spec
 .mypy_cache/
 .idea/
 .vscode/
+.superpowers/
 .DS_Store
 Thumbs.db
 *.xlsx
